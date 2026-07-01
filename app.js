@@ -500,7 +500,7 @@ function renderIncludedPages() {
       <article class="sheet included-page">
         ${renderSmallPageLogo()}
         <div class="sheet-content">
-          <h2 class="page-title">O que está incluso</h2>
+          <h2 class="page-title">O que está incluso no orçamento</h2>
           <div class="empty-state empty-state-blank"></div>
         </div>
       </article>
@@ -511,7 +511,7 @@ function renderIncludedPages() {
     <article class="sheet included-page">
       ${renderSmallPageLogo()}
       <div class="sheet-content">
-        <h2 class="page-title">O que está incluso</h2>
+        <h2 class="page-title">O que está incluso no orçamento</h2>
         <div class="included-list">
           ${items.map((item, index) => `
             <div class="included-item">

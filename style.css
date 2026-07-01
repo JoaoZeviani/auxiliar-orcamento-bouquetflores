@@ -446,13 +446,36 @@ textarea:focus {
 
 .pdf-logo {
   display: block;
-  width: 70mm;
-  max-height: 30mm;
+  width: 118mm;
+  max-width: 118mm;
+  height: auto;
+  max-height: 58mm;
   object-fit: contain;
 }
 
+.pdf-page-logo {
+  position: absolute;
+  z-index: 2;
+  top: 14mm;
+  right: 18mm;
+  width: 22mm;
+  max-width: 22mm;
+  height: auto;
+  max-height: 10mm;
+  object-fit: contain;
+}
+
+.sheet:not(.cover-page) .sheet-content {
+  padding-top: 9mm;
+}
+
+.sheet:not(.cover-page) .page-title {
+  padding-right: 34mm;
+}
+
 .cover-page .sheet-content {
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 18mm;
 }
 
 .cover-top {
@@ -468,7 +491,7 @@ textarea:focus {
 }
 
 .cover-main h1 {
-  margin: 12mm 0 5mm;
+  margin: 0 0 5mm;
   color: #000000;
   font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 39pt;
