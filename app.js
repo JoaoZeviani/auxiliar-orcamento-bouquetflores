@@ -234,11 +234,13 @@ async function waitForFonts() {
   if (!document.fonts || !document.fonts.ready) return;
 
   try {
+    await document.fonts.load('400 16px "Clear Sans"', 'Orçamento Floral');
+    await document.fonts.load('400 42pt "Magnolia Script"', 'Paleta de cores');
     await document.fonts.load('400 58pt "Gistesy"', 'Patricia Zeviani');
     await document.fonts.load('400 28pt "Gistesy"', 'Bouquet Flores');
     await document.fonts.ready;
   } catch (error) {
-    // Se a fonte externa não carregar, o navegador usa a fonte cursiva de fallback.
+    // Se alguma webfont não carregar, o PDF usa Clear Sans/Arial como fallback, não fonte cursiva genérica.
   }
 }
 

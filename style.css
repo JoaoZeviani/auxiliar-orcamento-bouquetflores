@@ -1,18 +1,20 @@
+@import url('https://fonts.cdnfonts.com/css/clear-sans');
+@import url('https://fonts.cdnfonts.com/css/magnolia-script');
 @import url('https://fonts.cdnfonts.com/css/gistesy');
 
 @font-face {
-  font-family: "Gistesy";
-  src: local("Gistesy"), local("Gistesy Regular");
-}
-
-@font-face {
-  font-family: "Magnólia Script";
-  src: local("Magnólia Script"), local("Magnolia Script"), local("MagnoliaScript");
-}
-
-@font-face {
-  font-family: "Clear Sans";
+  font-family: "Clear Sans Local";
   src: local("Clear Sans"), local("ClearSans");
+}
+
+@font-face {
+  font-family: "Magnolia Script Local";
+  src: local("Magnolia Script"), local("Magnólia Script"), local("MagnoliaScript");
+}
+
+@font-face {
+  font-family: "Gistesy Local";
+  src: local("Gistesy"), local("Gistesy Regular");
 }
 
 :root {
@@ -53,7 +55,7 @@ body {
   background:
     radial-gradient(circle at top left, rgba(125, 18, 37, .12), transparent 32rem),
     linear-gradient(135deg, #fffaf6 0%, var(--ui-bg) 100%);
-  font-family: "Clear Sans", sans-serif;
+  font-family: "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
 }
 
 button,
@@ -388,7 +390,7 @@ textarea:focus {
   color: var(--pdf-ink);
   background: var(--pdf-paper);
   box-shadow: 0 18px 55px rgba(45, 21, 10, .22);
-  font-family: "Clear Sans", sans-serif;
+  font-family: "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -413,6 +415,10 @@ textarea:focus {
   font-weight: 400 !important;
 }
 
+.sheet :where(p, span, div, h2, h3, b, li, td, th) {
+  font-family: "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
+}
+
 .swatch-color {
   color: transparent !important;
 }
@@ -432,7 +438,7 @@ textarea:focus {
 .page-title {
   margin: 0 0 10mm;
   color: #000000;
-  font-family: "Magnólia Script", cursive;
+  font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 42pt;
   line-height: 1.02;
   font-weight: 400 !important;
@@ -464,7 +470,7 @@ textarea:focus {
 .cover-main h1 {
   margin: 12mm 0 5mm;
   color: #000000;
-  font-family: "Magnólia Script", cursive;
+  font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 39pt;
   line-height: 1.08;
   letter-spacing: -.02em;
@@ -762,7 +768,7 @@ textarea:focus {
 
 .signature-mark {
   color: #805630 !important;
-  font-family: "Gistesy", cursive;
+  font-family: "Gistesy", "Gistesy Local", "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 58pt;
   line-height: 1;
   font-weight: 400 !important;
@@ -777,7 +783,7 @@ textarea:focus {
 
 .signature-caption {
   color: #805630 !important;
-  font-family: "Gistesy", cursive;
+  font-family: "Gistesy", "Gistesy Local", "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 28pt;
   line-height: 1;
   letter-spacing: 0;

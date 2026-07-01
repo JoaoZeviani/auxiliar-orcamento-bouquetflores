@@ -16,7 +16,7 @@ Observações importantes:
 - A página de inspirações sempre usa grade com 6 espaços por página.
 - O PDF usa texto preto e utiliza a cor principal apenas em fundos, bordas e detalhes.
 - O total aparece como "Investimento Floral" e soma os preços dos itens do orçamento.
-- A assinatura final está configurada com a fonte "Gistesy". Para aparecer exatamente nessa fonte, ela precisa estar instalada no computador/celular usado para gerar o PDF ou ser adicionada manualmente ao projeto pelo dono da fonte.
+- O app carrega Clear Sans, Magnolia Script e Gistesy por webfont quando estiver online. Se alguma fonte não carregar, o PDF usa Clear Sans/Arial como fallback, nunca uma fonte cursiva genérica.
 - Para as cores e fundos aparecerem corretamente no PDF, deixe a opção de imprimir gráficos/fundos ativada no navegador quando necessário.
 
 
@@ -24,4 +24,4 @@ Alterações desta versão:
 - Ícone do app aplicado também no topo esquerdo da interface.
 - PDF sem negrito.
 - Assinatura final com Patricia Zeviani e Bouquet Flores na fonte Gistesy.
-- O app carrega a fonte Gistesy automaticamente via webfont quando há internet.
+- O app carrega Clear Sans, Magnolia Script e Gistesy automaticamente via webfont quando há internet.
