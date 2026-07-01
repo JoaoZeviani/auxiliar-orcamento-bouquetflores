@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auxiliar de Orçamento Floral</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar no-print">
+    <div class="brand">
+      <img src="assets/logo_bouquet_flores.png" alt="Logotipo Bouquet Flores">
+      <div>
+        <strong>Auxiliar de Orçamento Floral</strong>
+        <span>Monte a proposta e gere o PDF final</span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="secondary" id="btnReset" type="button">Limpar dados</button>
+      <button class="primary" id="btnPrint" type="button">Gerar PDF / Imprimir</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="editor no-print" aria-label="Editor do orçamento">
+      <section class="panel">
+        <h2>1. Capa</h2>
+
+        <label>
+          Título do documento
+          <input type="text" data-section="cover" data-field="title" placeholder="Ex.: Proposta de Orçamento Floral">
+        </label>
+
+        <label>
+          Texto/descrição da capa
+          <textarea rows="4" data-section="cover" data-field="intro" placeholder="Texto breve que aparecerá na capa"></textarea>
+        </label>
+
+        <div class="section-title-row">
+          <h3>Informações da capa</h3>
+          <button class="mini" type="button" id="btnAddCoverField">+ Campo</button>
+        </div>
+        <div id="coverFieldsEditor" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <h2>2. Paleta de cores</h2>
+        <p class="hint">Adicione até 10 cores. Marque pelo menos uma como principal; ela guia as cores do PDF.</p>
+        <div id="paletteEditor" class="stack"></div>
+        <button class="mini" type="button" id="btnAddColor">+ Cor</button>
+      </section>
+
+      <section class="panel">
+        <h2>3. Inspirações</h2>
+        <p class="hint">O PDF coloca exatamente 6 imagens por página.</p>
+        <label class="file-drop">
+          <input type="file" id="inspirationInput" accept="image/*" multiple>
+          <span>Adicionar fotos de inspiração</span>
+        </label>
+        <div id="inspirationsEditor" class="image-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title-row">
+          <h2>4. Orçamento</h2>
+          <button class="mini" type="button" id="btnAddBudgetItem">+ Item</button>
+        </div>
+        <div id="budgetEditor" class="stack"></div>
+
+        <label>
+          Condições de pagamento
+          <textarea rows="4" data-section="payment" data-field="terms" placeholder="Ex.: 50% na aprovação e 50% até 7 dias antes do evento."></textarea>
+        </label>
+      </section>
+
+      <section class="panel">
+        <div class="section-title-row">
+          <h2>5. Inclusos</h2>
+          <button class="mini" type="button" id="btnAddIncluded">+ Tópico</button>
+        </div>
+        <div id="includedEditor" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <h2>6. Assinatura</h2>
+        <p class="hint">O documento termina com a assinatura fixa “Patricia Zeviani”, usando a fonte Gistesy quando ela estiver instalada no computador.</p>
+      </section>
+    </aside>
+
+    <section class="preview-wrap" aria-label="Pré-visualização do PDF">
+      <div class="preview-toolbar no-print">
+        <strong>Pré-visualização</strong>
+        <span id="saveStatus">Alterações salvas neste navegador</span>
+      </div>
+      <div id="pdfPreview" class="pdf-document"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
