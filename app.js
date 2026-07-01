@@ -422,23 +422,17 @@ function renderInspirationPages() {
     `];
   }
 
-  return chunk(state.inspirations, 6).map((items, pageIndex) => {
-    const slots = Array.from({ length: 6 }, (_, index) => items[index] || null);
-    return `
-      <article class="sheet inspiration-page">
-        ${renderSmallPageLogo()}
-        <div class="sheet-content">
-          <h2 class="page-title">Inspirações</h2>
-          <div class="inspiration-grid">
-            ${slots.map(item => item
-              ? `<div class="inspiration-slot"><img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}"></div>`
-              : `<div class="inspiration-slot empty"></div>`
-            ).join("")}
-          </div>
+  return chunk(state.inspirations, 6).map((items, pageIndex) => `
+    <article class="sheet inspiration-page">
+      ${renderSmallPageLogo()}
+      <div class="sheet-content">
+        <h2 class="page-title">Inspirações</h2>
+        <div class="inspiration-grid">
+          ${items.map(item => `<div class="inspiration-slot"><img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}"></div>`).join("")}
         </div>
-      </article>
-    `;
-  });
+      </div>
+    </article>
+  `);
 }
 
 function renderBudgetPages() {

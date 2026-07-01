@@ -458,10 +458,10 @@ textarea:focus {
   z-index: 2;
   top: 14mm;
   right: 18mm;
-  width: 22mm;
-  max-width: 22mm;
+  width: 28mm;
+  max-width: 28mm;
   height: auto;
-  max-height: 10mm;
+  max-height: 13mm;
   object-fit: contain;
 }
 
