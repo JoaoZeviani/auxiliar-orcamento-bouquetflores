@@ -121,7 +121,7 @@ button {
 .mini {
   border-radius: 999px;
   padding: .72rem 1rem;
-  font-weight: 700;
+  font-weight: 400;
   transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
 }
 
@@ -210,7 +210,7 @@ button {
 label {
   display: block;
   margin-bottom: .75rem;
-  font-weight: 700;
+  font-weight: 400;
   font-size: .86rem;
 }
 
@@ -283,7 +283,7 @@ textarea:focus {
   gap: .45rem;
   margin: .3rem 0 .55rem;
   color: var(--ui-muted);
-  font-weight: 700;
+  font-weight: 400;
   font-size: .84rem;
 }
 
@@ -312,7 +312,7 @@ textarea:focus {
 }
 
 .file-drop span {
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .image-list {
@@ -426,21 +426,16 @@ textarea:focus {
 }
 
 .page-kicker {
-  margin: 0 0 2.5mm;
-  color: #000000;
-  font-size: 9.5pt;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  font-weight: 900;
+  display: none;
 }
 
 .page-title {
-  margin: 0 0 8mm;
+  margin: 0 0 10mm;
   color: #000000;
   font-family: "Magnólia Script", cursive;
-  font-size: 32pt;
-  line-height: 1.05;
-  font-weight: 900;
+  font-size: 42pt;
+  line-height: 1.02;
+  font-weight: 400 !important;
 }
 
 .pdf-logo {
@@ -539,7 +534,7 @@ textarea:focus {
   background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
   font-size: 10pt;
-  font-weight: 900;
+  font-weight: 400;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -566,7 +561,7 @@ textarea:focus {
   padding: 4mm;
 }
 
-.swatch-info strong {
+.swatch-name {
   display: block;
   color: #000000;
   font-size: 12pt;
@@ -586,7 +581,7 @@ textarea:focus {
   background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
   font-size: 7.5pt;
-  font-weight: 900;
+  font-weight: 400;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -671,7 +666,7 @@ textarea:focus {
   justify-content: flex-end;
   color: #000000;
   font-size: 12pt;
-  font-weight: 900;
+  font-weight: 400;
   text-align: right;
 }
 
@@ -693,13 +688,14 @@ textarea:focus {
   font-size: 10pt;
   letter-spacing: .1em;
   text-transform: uppercase;
-  font-weight: 900;
+  font-weight: 400;
 }
 
-.total-box strong {
+.total-value {
   display: block;
   margin-top: 1mm;
   font-size: 24pt;
+  font-weight: 400 !important;
 }
 
 .payment-box {
@@ -754,7 +750,7 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 900;
+  font-weight: 400;
   font-size: 8pt;
 }
 
@@ -765,22 +761,22 @@ textarea:focus {
 }
 
 .signature-mark {
-  color: #000000;
+  color: #805630 !important;
   font-family: "Gistesy", cursive;
   font-size: 58pt;
   line-height: 1;
-  font-weight: 400;
+  font-weight: 400 !important;
 }
 
 .signature-line {
   width: 86mm;
   height: 1px;
-  margin: 7mm auto 3mm;
+  margin: 7mm auto 6mm;
   background: var(--pdf-primary-soft);
 }
 
 .signature-caption {
-  color: #000000;
+  color: #805630 !important;
   font-family: "Gistesy", cursive;
   font-size: 28pt;
   line-height: 1;

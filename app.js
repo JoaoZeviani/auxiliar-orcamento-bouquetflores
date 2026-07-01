@@ -390,7 +390,7 @@ function renderPalettePage() {
       <div class="swatch-card">
         <div class="swatch-color" style="background:${hex}; color:${text};"></div>
         <div class="swatch-info">
-          <strong>${escapeHtml(item.name || "Cor")}</strong>
+          <span class="swatch-name">${escapeHtml(item.name || "Cor")}</span>
           <span>${escapeHtml(hex.toUpperCase())}</span>
           ${item.main ? `<div class="main-badge">principal</div>` : ""}
         </div>
@@ -401,8 +401,7 @@ function renderPalettePage() {
   return `
     <article class="sheet palette-page">
       <div class="sheet-content">
-        <p class="page-kicker">Paleta de cores</p>
-        <h2 class="page-title">Cores do projeto</h2>
+        <h2 class="page-title">Paleta de cores</h2>
 
         <div class="palette-grid">
           ${paletteHtml || `<div class="empty-state">Adicione cores no editor.</div>`}
@@ -418,7 +417,6 @@ function renderInspirationPages() {
     return [`
       <article class="sheet inspiration-page">
         <div class="sheet-content">
-          <p class="page-kicker">Inspirações</p>
           <h2 class="page-title">Inspirações</h2>
           <div class="empty-state">Adicione fotos de inspiração no editor.</div>
         </div>
@@ -431,7 +429,6 @@ function renderInspirationPages() {
     return `
       <article class="sheet inspiration-page">
         <div class="sheet-content">
-          <p class="page-kicker">Inspirações ${pageIndex + 1}</p>
           <h2 class="page-title">Inspirações</h2>
           <div class="inspiration-grid">
             ${slots.map(item => item
@@ -459,8 +456,7 @@ function renderBudgetPages() {
     return `
       <article class="sheet budget-page">
         <div class="sheet-content">
-          <p class="page-kicker">Orçamento ${pages.length > 1 ? `${index + 1}/${pages.length}` : ""}</p>
-          <h2 class="page-title">Composição do orçamento</h2>
+          <h2 class="page-title">Orçamento</h2>
 
           ${pageItems.length
             ? `<div class="budget-list">${pageItems.map(renderBudgetItem).join("")}</div>`
@@ -470,7 +466,7 @@ function renderBudgetPages() {
           ${isLast ? `
             <div class="total-box">
               <span>Investimento Floral</span>
-              <strong>${formatMoney(total)}</strong>
+              <span class="total-value">${formatMoney(total)}</span>
             </div>
 
             <div class="payment-box">
@@ -503,7 +499,6 @@ function renderIncludedPages() {
     return [`
       <article class="sheet included-page">
         <div class="sheet-content">
-          <p class="page-kicker">Inclusos</p>
           <h2 class="page-title">O que está incluso</h2>
           <div class="empty-state">Adicione tópicos de itens inclusos no editor.</div>
         </div>
@@ -514,7 +509,6 @@ function renderIncludedPages() {
   return chunk(topics, 10).map((items, pageIndex) => `
     <article class="sheet included-page">
       <div class="sheet-content">
-        <p class="page-kicker">Inclusos ${pageIndex + 1}</p>
         <h2 class="page-title">O que está incluso</h2>
         <div class="included-list">
           ${items.map((item, index) => `
