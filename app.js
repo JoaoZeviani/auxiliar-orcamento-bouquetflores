@@ -3,31 +3,17 @@ const LOGO_SRC = "assets/logo_bouquet_flores.png";
 
 const defaultState = {
   cover: {
-    title: "Proposta de Orçamento Floral",
-    intro: "Um projeto floral pensado para transformar o evento em uma experiência elegante, acolhedora e personalizada."
+    title: "",
+    intro: ""
   },
-  coverFields: [
-    { id: cryptoId(), label: "Cliente", value: "" },
-    { id: cryptoId(), label: "Evento", value: "" },
-    { id: cryptoId(), label: "Data do evento", value: "" },
-    { id: cryptoId(), label: "Local", value: "" }
-  ],
-  palette: [
-    { id: cryptoId(), name: "Marsala", hex: "#7D1225", main: true },
-    { id: cryptoId(), name: "Creme", hex: "#F5EBE3", main: false },
-    { id: cryptoId(), name: "Bronze", hex: "#805630", main: false }
-  ],
+  coverFields: [],
+  palette: [],
   inspirations: [],
-  budgetItems: [
-    { id: cryptoId(), name: "Decoração floral", description: "Descreva aqui os itens, ambientes ou arranjos previstos.", price: "" }
-  ],
+  budgetItems: [],
   payment: {
-    terms: "Condições de pagamento a combinar."
+    terms: ""
   },
-  includedTopics: [
-    { id: cryptoId(), text: "Criação e montagem dos arranjos florais conforme proposta aprovada." },
-    { id: cryptoId(), text: "Curadoria de flores e folhagens alinhadas à paleta escolhida." }
-  ]
+  includedTopics: []
 };
 
 let state = loadState();
@@ -42,6 +28,7 @@ const els = {
   includedEditor: document.getElementById("includedEditor"),
   inspirationInput: document.getElementById("inspirationInput"),
   btnPrint: document.getElementById("btnPrint"),
+  btnFakeData: document.getElementById("btnFakeData"),
   btnReset: document.getElementById("btnReset"),
   btnAddCoverField: document.getElementById("btnAddCoverField"),
   btnAddColor: document.getElementById("btnAddColor"),
@@ -71,6 +58,15 @@ function bindEvents() {
     window.print();
   });
 
+  els.btnFakeData.addEventListener("click", () => {
+    const ok = confirm("Preencher o programa com dados fictícios para teste? Isso substituirá os dados atuais neste navegador.");
+    if (!ok) return;
+    state = createFakeState();
+    saveState();
+    renderEditor();
+    renderPreview();
+  });
+
   els.btnReset.addEventListener("click", () => {
     const ok = confirm("Limpar todos os dados salvos neste navegador?");
     if (!ok) return;
@@ -81,7 +77,7 @@ function bindEvents() {
   });
 
   els.btnAddCoverField.addEventListener("click", () => {
-    state.coverFields.push({ id: cryptoId(), label: "Novo campo", value: "" });
+    state.coverFields.push({ id: cryptoId(), label: "", value: "" });
     saveRenderAll();
   });
 
@@ -90,18 +86,18 @@ function bindEvents() {
       setStatus("Limite de 10 cores atingido.");
       return;
     }
-    state.palette.push({ id: cryptoId(), name: "Nova cor", hex: "#7D1225", main: state.palette.length === 0 });
+    state.palette.push({ id: cryptoId(), name: "", hex: "#7D1225", main: state.palette.length === 0 });
     ensureMainColor();
     saveRenderAll();
   });
 
   els.btnAddBudgetItem.addEventListener("click", () => {
-    state.budgetItems.push({ id: cryptoId(), name: "Novo item", description: "", price: "" });
+    state.budgetItems.push({ id: cryptoId(), name: "", description: "", price: "" });
     saveRenderAll();
   });
 
   els.btnAddIncluded.addEventListener("click", () => {
-    state.includedTopics.push({ id: cryptoId(), text: "Novo tópico incluso no orçamento." });
+    state.includedTopics.push({ id: cryptoId(), text: "" });
     saveRenderAll();
   });
 }
@@ -354,14 +350,12 @@ function renderPreview() {
 
 function renderCoverPage() {
   const fields = state.coverFields.filter(item => (item.label || item.value || "").trim());
-  const fieldsHtml = fields.length
-    ? fields.map(item => `
-      <div class="cover-field full">
-        <b>${escapeHtml(item.label || "Informação")}</b>
-        <span>${escapeHtml(item.value || "—")}</span>
-      </div>
-    `).join("")
-    : `<div class="cover-field full"><b>Informações</b><span>Preencha os dados da capa no editor.</span></div>`;
+  const fieldsHtml = fields.map(item => `
+    <div class="cover-field full">
+      ${item.label ? `<b>${escapeHtml(item.label)}</b>` : ""}
+      ${item.value ? `<span>${escapeHtml(item.value)}</span>` : ""}
+    </div>
+  `).join("");
 
   return `
     <article class="sheet cover-page">
@@ -371,17 +365,17 @@ function renderCoverPage() {
         </div>
 
         <div class="cover-main">
-          <h1>${escapeHtml(state.cover.title || "Proposta de Orçamento Floral")}</h1>
-          <p class="cover-intro">${escapeHtml(state.cover.intro || "")}</p>
-          <div class="cover-fields">${fieldsHtml}</div>
-        </div>
-
-        <div class="cover-footer">
-          <div class="cover-seal">Bouquet Flores</div>
+          ${state.cover.title ? `<h1>${escapeHtml(state.cover.title)}</h1>` : ""}
+          ${state.cover.intro ? `<p class="cover-intro">${escapeHtml(state.cover.intro)}</p>` : ""}
+          ${fieldsHtml ? `<div class="cover-fields">${fieldsHtml}</div>` : ""}
         </div>
       </div>
     </article>
   `;
+}
+
+function renderSmallPageLogo() {
+  return `<img class="pdf-page-logo" src="${LOGO_SRC}" alt="Logotipo Bouquet Flores">`;
 }
 
 function renderPalettePage() {
@@ -392,7 +386,7 @@ function renderPalettePage() {
       <div class="swatch-card">
         <div class="swatch-color" style="background:${hex}; color:${text};"></div>
         <div class="swatch-info">
-          <span class="swatch-name">${escapeHtml(item.name || "Cor")}</span>
+          ${item.name ? `<span class="swatch-name">${escapeHtml(item.name)}</span>` : ""}
           <span>${escapeHtml(hex.toUpperCase())}</span>
           ${item.main ? `<div class="main-badge">principal</div>` : ""}
         </div>
@@ -402,11 +396,12 @@ function renderPalettePage() {
 
   return `
     <article class="sheet palette-page">
+      ${renderSmallPageLogo()}
       <div class="sheet-content">
         <h2 class="page-title">Paleta de cores</h2>
 
         <div class="palette-grid">
-          ${paletteHtml || `<div class="empty-state">Adicione cores no editor.</div>`}
+          ${paletteHtml}
         </div>
 
       </div>
@@ -418,9 +413,10 @@ function renderInspirationPages() {
   if (!state.inspirations.length) {
     return [`
       <article class="sheet inspiration-page">
+        ${renderSmallPageLogo()}
         <div class="sheet-content">
           <h2 class="page-title">Inspirações</h2>
-          <div class="empty-state">Adicione fotos de inspiração no editor.</div>
+          <div class="empty-state empty-state-blank"></div>
         </div>
       </article>
     `];
@@ -430,12 +426,13 @@ function renderInspirationPages() {
     const slots = Array.from({ length: 6 }, (_, index) => items[index] || null);
     return `
       <article class="sheet inspiration-page">
+        ${renderSmallPageLogo()}
         <div class="sheet-content">
           <h2 class="page-title">Inspirações</h2>
           <div class="inspiration-grid">
             ${slots.map(item => item
               ? `<div class="inspiration-slot"><img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}"></div>`
-              : `<div class="inspiration-slot empty">Espaço para imagem</div>`
+              : `<div class="inspiration-slot empty"></div>`
             ).join("")}
           </div>
         </div>
@@ -457,12 +454,13 @@ function renderBudgetPages() {
     const isLast = index === pages.length - 1;
     return `
       <article class="sheet budget-page">
+        ${renderSmallPageLogo()}
         <div class="sheet-content">
           <h2 class="page-title">Orçamento</h2>
 
           ${pageItems.length
             ? `<div class="budget-list">${pageItems.map(renderBudgetItem).join("")}</div>`
-            : `<div class="empty-state">Adicione campos de orçamento no editor.</div>`
+            : `<div class="empty-state empty-state-blank"></div>`
           }
 
           ${isLast ? `
@@ -473,7 +471,7 @@ function renderBudgetPages() {
 
             <div class="payment-box">
               <h3>Condições de pagamento</h3>
-              <p>${escapeHtml(state.payment.terms || "Preencha as condições de pagamento no editor.")}</p>
+              ${state.payment.terms ? `<p>${escapeHtml(state.payment.terms)}</p>` : ""}
             </div>
           ` : ""}
         </div>
@@ -486,7 +484,7 @@ function renderBudgetItem(item) {
   return `
     <div class="budget-row">
       <div>
-        <h3>${escapeHtml(item.name || "Item do orçamento")}</h3>
+        ${item.name ? `<h3>${escapeHtml(item.name)}</h3>` : ""}
         <p>${escapeHtml(item.description || "")}</p>
       </div>
       <div class="budget-price">${formatMoney(parseMoney(item.price))}</div>
@@ -500,9 +498,10 @@ function renderIncludedPages() {
   if (!topics.length) {
     return [`
       <article class="sheet included-page">
+        ${renderSmallPageLogo()}
         <div class="sheet-content">
           <h2 class="page-title">O que está incluso</h2>
-          <div class="empty-state">Adicione tópicos de itens inclusos no editor.</div>
+          <div class="empty-state empty-state-blank"></div>
         </div>
       </article>
     `];
@@ -510,6 +509,7 @@ function renderIncludedPages() {
 
   return chunk(topics, 10).map((items, pageIndex) => `
     <article class="sheet included-page">
+      ${renderSmallPageLogo()}
       <div class="sheet-content">
         <h2 class="page-title">O que está incluso</h2>
         <div class="included-list">
@@ -528,6 +528,7 @@ function renderIncludedPages() {
 function renderSignaturePage() {
   return `
     <article class="sheet signature-page">
+      ${renderSmallPageLogo()}
       <div class="sheet-content">
         <div>
           <div class="signature-mark">Patricia Zeviani</div>
@@ -579,9 +580,7 @@ function applyTheme() {
 }
 
 function ensureMainColor() {
-  if (!state.palette.length) {
-    state.palette.push({ id: cryptoId(), name: "Marsala", hex: "#7D1225", main: true });
-  }
+  if (!state.palette.length) return;
 
   const firstMainIndex = state.palette.findIndex(item => item.main);
 
@@ -629,16 +628,155 @@ function saveState() {
 }
 
 function mergeState(base, incoming) {
-  return {
+  const merged = {
     ...base,
     ...incoming,
     cover: { ...base.cover, ...(incoming.cover || {}) },
     payment: { ...base.payment, ...(incoming.payment || {}) },
     coverFields: Array.isArray(incoming.coverFields) ? incoming.coverFields : base.coverFields,
-    palette: Array.isArray(incoming.palette) && incoming.palette.length ? incoming.palette.slice(0, 10) : base.palette,
+    palette: Array.isArray(incoming.palette) ? incoming.palette.slice(0, 10) : base.palette,
     inspirations: Array.isArray(incoming.inspirations) ? incoming.inspirations : base.inspirations,
     budgetItems: Array.isArray(incoming.budgetItems) ? incoming.budgetItems : base.budgetItems,
     includedTopics: Array.isArray(incoming.includedTopics) ? incoming.includedTopics : base.includedTopics
+  };
+
+  return removeLegacyExampleData(merged);
+}
+
+function removeLegacyExampleData(data) {
+  const legacyCoverTitle = "Proposta de Orçamento Floral";
+  const legacyCoverIntro = "Um projeto floral pensado para transformar o evento em uma experiência elegante, acolhedora e personalizada.";
+  const legacyPayment = "Condições de pagamento a combinar.";
+  const legacyBudgetDescription = "Descreva aqui os itens, ambientes ou arranjos previstos.";
+  const legacyIncluded = [
+    "Criação e montagem dos arranjos florais conforme proposta aprovada.",
+    "Curadoria de flores e folhagens alinhadas à paleta escolhida."
+  ];
+
+  if (data.cover?.title === legacyCoverTitle) data.cover.title = "";
+  if (data.cover?.intro === legacyCoverIntro) data.cover.intro = "";
+  if (data.payment?.terms === legacyPayment) data.payment.terms = "";
+
+  if (Array.isArray(data.coverFields) && data.coverFields.length === 4) {
+    const legacyLabels = ["Cliente", "Evento", "Data do evento", "Local"];
+    const isLegacyCover = data.coverFields.every((item, index) =>
+      item.label === legacyLabels[index] && !String(item.value || "").trim()
+    );
+    if (isLegacyCover) data.coverFields = [];
+  }
+
+  if (Array.isArray(data.palette) && data.palette.length === 3) {
+    const legacyPalette = [
+      ["Marsala", "#7D1225", true],
+      ["Creme", "#F5EBE3", false],
+      ["Bronze", "#805630", false]
+    ];
+    const isLegacyPalette = data.palette.every((item, index) =>
+      item.name === legacyPalette[index][0]
+      && normalizeHex(item.hex).toUpperCase() === legacyPalette[index][1]
+      && Boolean(item.main) === legacyPalette[index][2]
+    );
+    if (isLegacyPalette) data.palette = [];
+  }
+
+  if (Array.isArray(data.budgetItems) && data.budgetItems.length === 1) {
+    const item = data.budgetItems[0];
+    if (item.name === "Decoração floral" && item.description === legacyBudgetDescription && !String(item.price || "").trim()) {
+      data.budgetItems = [];
+    }
+  }
+
+  if (Array.isArray(data.includedTopics) && data.includedTopics.length === 2) {
+    const isLegacyIncluded = data.includedTopics.every((item, index) => item.text === legacyIncluded[index]);
+    if (isLegacyIncluded) data.includedTopics = [];
+  }
+
+  return data;
+}
+
+function createFakeState() {
+  const palette = [
+    { id: cryptoId(), name: "Marsala", hex: "#7D1225", main: true },
+    { id: cryptoId(), name: "Creme", hex: "#F5EBE3", main: false },
+    { id: cryptoId(), name: "Bronze", hex: "#805630", main: false },
+    { id: cryptoId(), name: "Verde oliva", hex: "#6F7A45", main: false }
+  ];
+
+  return {
+    cover: {
+      title: "Proposta de Orçamento Floral",
+      intro: "Projeto floral personalizado para compor uma celebração elegante, acolhedora e alinhada à identidade visual do evento."
+    },
+    coverFields: [
+      { id: cryptoId(), label: "Cliente", value: "Mariana e Rafael" },
+      { id: cryptoId(), label: "Evento", value: "Casamento intimista" },
+      { id: cryptoId(), label: "Data do evento", value: "18/10/2026" },
+      { id: cryptoId(), label: "Local", value: "Ribeirão Preto/SP" }
+    ],
+    palette,
+    inspirations: [
+      createFakeInspiration(1, "Mesa floral", "#7D1225", "#F5EBE3"),
+      createFakeInspiration(2, "Arranjo aéreo", "#805630", "#F5EBE3"),
+      createFakeInspiration(3, "Cerimônia", "#6F7A45", "#F5EBE3"),
+      createFakeInspiration(4, "Buquê", "#7D1225", "#805630"),
+      createFakeInspiration(5, "Recepção", "#F5EBE3", "#7D1225"),
+      createFakeInspiration(6, "Detalhes", "#805630", "#7D1225")
+    ],
+    budgetItems: [
+      {
+        id: cryptoId(),
+        name: "Mesa do bolo",
+        description: "Composição floral com arranjos baixos, folhagens e flores naturais na paleta escolhida.",
+        price: "1850,00"
+      },
+      {
+        id: cryptoId(),
+        name: "Cerimônia",
+        description: "Arranjos laterais para corredor, flores no altar e acabamento com folhagens.",
+        price: "2400,00"
+      },
+      {
+        id: cryptoId(),
+        name: "Mesas dos convidados",
+        description: "Centros de mesa florais com vasos baixos e composição delicada para recepção.",
+        price: "3200,00"
+      }
+    ],
+    payment: {
+      terms: "50% na aprovação da proposta e 50% até 7 dias antes do evento."
+    },
+    includedTopics: [
+      { id: cryptoId(), text: "Criação do conceito floral conforme paleta aprovada." },
+      { id: cryptoId(), text: "Compra, preparo e curadoria das flores e folhagens." },
+      { id: cryptoId(), text: "Montagem no local do evento conforme cronograma combinado." },
+      { id: cryptoId(), text: "Desmontagem dos arranjos ao final do evento." }
+    ]
+  };
+}
+
+function createFakeInspiration(index, name, primary, accent) {
+  const safeName = escapeHtml(name);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620">
+      <defs>
+        <linearGradient id="bg${index}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="${accent}"/>
+          <stop offset="1" stop-color="#fffaf6"/>
+        </linearGradient>
+      </defs>
+      <rect width="900" height="620" fill="url(#bg${index})"/>
+      <circle cx="${250 + index * 18}" cy="250" r="120" fill="${primary}" opacity="0.92"/>
+      <circle cx="${350 + index * 10}" cy="230" r="92" fill="${primary}" opacity="0.74"/>
+      <circle cx="${420 + index * 6}" cy="330" r="110" fill="${primary}" opacity="0.58"/>
+      <path d="M160 480 C320 340, 520 560, 740 360" fill="none" stroke="#805630" stroke-width="24" stroke-linecap="round" opacity="0.75"/>
+      <text x="70" y="560" font-family="Arial, sans-serif" font-size="42" fill="#2c2020" opacity="0.75">${safeName}</text>
+    </svg>
+  `.trim();
+
+  return {
+    id: cryptoId(),
+    name,
+    dataUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
   };
 }
 
