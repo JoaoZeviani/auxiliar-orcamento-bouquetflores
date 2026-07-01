@@ -65,8 +65,9 @@ function bindEvents() {
 
   els.inspirationInput.addEventListener("change", handleImageUpload);
 
-  els.btnPrint.addEventListener("click", () => {
+  els.btnPrint.addEventListener("click", async () => {
     renderPreview();
+    await waitForFonts();
     window.print();
   });
 
@@ -227,6 +228,18 @@ function handleImageUpload(event) {
 
     reader.readAsDataURL(file);
   });
+}
+
+async function waitForFonts() {
+  if (!document.fonts || !document.fonts.ready) return;
+
+  try {
+    await document.fonts.load('400 58pt "Gistesy"', 'Patricia Zeviani');
+    await document.fonts.load('400 28pt "Gistesy"', 'Bouquet Flores');
+    await document.fonts.ready;
+  } catch (error) {
+    // Se a fonte externa não carregar, o navegador usa a fonte cursiva de fallback.
+  }
 }
 
 function renderEditor() {
