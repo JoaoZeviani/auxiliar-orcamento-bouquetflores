@@ -4,6 +4,11 @@
 }
 
 @font-face {
+  font-family: "Magnólia Script";
+  src: local("Magnólia Script"), local("Magnolia Script"), local("MagnoliaScript");
+}
+
+@font-face {
   font-family: "Clear Sans";
   src: local("Clear Sans"), local("ClearSans");
 }
@@ -25,10 +30,10 @@
   --pdf-accent: #805630;
   --pdf-paper: #fffaf6;
   --pdf-surface: #ffffff;
-  --pdf-ink: #211719;
-  --pdf-muted: #6f6063;
+  --pdf-ink: #000000;
+  --pdf-muted: #000000;
   --pdf-border: #e5cbd1;
-  --pdf-on-primary: #ffffff;
+  --pdf-on-primary: #000000;
 }
 
 * {
@@ -46,7 +51,7 @@ body {
   background:
     radial-gradient(circle at top left, rgba(125, 18, 37, .12), transparent 32rem),
     linear-gradient(135deg, #fffaf6 0%, var(--ui-bg) 100%);
-  font-family: "Clear Sans", Arial, Helvetica, sans-serif;
+  font-family: "Clear Sans", sans-serif;
 }
 
 button,
@@ -378,7 +383,7 @@ textarea:focus {
   color: var(--pdf-ink);
   background: var(--pdf-paper);
   box-shadow: 0 18px 55px rgba(45, 21, 10, .22);
-  font-family: "Clear Sans", Arial, Helvetica, sans-serif;
+  font-family: "Clear Sans", sans-serif;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -393,15 +398,17 @@ textarea:focus {
 }
 
 .sheet::after {
-  content: "";
-  position: absolute;
-  right: -32mm;
-  top: -32mm;
-  width: 84mm;
-  height: 84mm;
-  border-radius: 50%;
-  background: var(--pdf-primary-pale);
-  pointer-events: none;
+  content: none;
+}
+
+
+.sheet,
+.sheet * {
+  color: #000000;
+}
+
+.swatch-color {
+  color: transparent !important;
 }
 
 .sheet-content {
@@ -414,7 +421,7 @@ textarea:focus {
 
 .page-kicker {
   margin: 0 0 2.5mm;
-  color: var(--pdf-accent);
+  color: #000000;
   font-size: 9.5pt;
   letter-spacing: .14em;
   text-transform: uppercase;
@@ -423,8 +430,9 @@ textarea:focus {
 
 .page-title {
   margin: 0 0 8mm;
-  color: var(--pdf-primary-dark);
-  font-size: 26pt;
+  color: #000000;
+  font-family: "Magnólia Script", cursive;
+  font-size: 32pt;
   line-height: 1.05;
   font-weight: 900;
 }
@@ -454,8 +462,9 @@ textarea:focus {
 
 .cover-main h1 {
   margin: 12mm 0 5mm;
-  color: var(--pdf-primary-dark);
-  font-size: 31pt;
+  color: #000000;
+  font-family: "Magnólia Script", cursive;
+  font-size: 39pt;
   line-height: 1.08;
   letter-spacing: -.02em;
 }
@@ -463,7 +472,7 @@ textarea:focus {
 .cover-intro {
   margin: 0 auto 11mm;
   max-width: 130mm;
-  color: var(--pdf-muted);
+  color: #000000;
   font-size: 12.4pt;
   line-height: 1.55;
   white-space: pre-line;
@@ -471,15 +480,15 @@ textarea:focus {
 
 .cover-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4mm;
-  max-width: 150mm;
+  grid-template-columns: 1fr;
+  gap: 3mm;
+  max-width: 135mm;
   margin: 0 auto;
 }
 
 .cover-field {
-  min-height: 23mm;
-  padding: 4.5mm;
+  min-height: 17mm;
+  padding: 4mm;
   border-radius: 4mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -493,7 +502,7 @@ textarea:focus {
 .cover-field b {
   display: block;
   margin-bottom: 1.5mm;
-  color: var(--pdf-primary-dark);
+  color: #000000;
   font-size: 9.4pt;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -520,8 +529,9 @@ textarea:focus {
   min-width: 72mm;
   padding: 3.3mm 7mm;
   border-radius: 999px;
-  color: var(--pdf-on-primary);
-  background: var(--pdf-primary);
+  color: #000000;
+  background: var(--pdf-primary-pale);
+  border: 1px solid var(--pdf-border);
   font-size: 10pt;
   font-weight: 900;
   letter-spacing: .08em;
@@ -552,12 +562,12 @@ textarea:focus {
 
 .swatch-info strong {
   display: block;
-  color: var(--pdf-primary-dark);
+  color: #000000;
   font-size: 12pt;
 }
 
 .swatch-info span {
-  color: var(--pdf-muted);
+  color: #000000;
   font-size: 9.4pt;
 }
 
@@ -566,8 +576,9 @@ textarea:focus {
   margin-top: 2.2mm;
   padding: 1.2mm 2.4mm;
   border-radius: 999px;
-  color: var(--pdf-on-primary);
-  background: var(--pdf-primary);
+  color: #000000;
+  background: var(--pdf-primary-pale);
+  border: 1px solid var(--pdf-border);
   font-size: 7.5pt;
   font-weight: 900;
   letter-spacing: .08em;
@@ -612,7 +623,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--pdf-muted);
+  color: #000000;
   border-style: dashed;
   font-size: 9pt;
 }
@@ -636,13 +647,13 @@ textarea:focus {
 
 .budget-row h3 {
   margin: 0 0 1.5mm;
-  color: var(--pdf-primary-dark);
+  color: #000000;
   font-size: 13pt;
 }
 
 .budget-row p {
   margin: 0;
-  color: var(--pdf-muted);
+  color: #000000;
   font-size: 10pt;
   line-height: 1.42;
   white-space: pre-line;
@@ -652,7 +663,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  color: var(--pdf-primary-dark);
+  color: #000000;
   font-size: 12pt;
   font-weight: 900;
   text-align: right;
@@ -666,8 +677,9 @@ textarea:focus {
   gap: 8mm;
   padding: 6mm;
   border-radius: 6mm;
-  color: var(--pdf-on-primary);
-  background: var(--pdf-primary);
+  color: #000000;
+  background: var(--pdf-primary-pale);
+  border: 1px solid var(--pdf-border);
 }
 
 .total-box span {
@@ -694,7 +706,7 @@ textarea:focus {
 
 .payment-box h3 {
   margin: 0 0 2mm;
-  color: var(--pdf-primary-dark);
+  color: #000000;
   font-size: 12.5pt;
 }
 
@@ -730,8 +742,9 @@ textarea:focus {
   width: 8mm;
   height: 8mm;
   border-radius: 50%;
-  color: var(--pdf-on-primary);
-  background: var(--pdf-primary);
+  color: #000000;
+  background: var(--pdf-primary-pale);
+  border: 1px solid var(--pdf-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -746,8 +759,8 @@ textarea:focus {
 }
 
 .signature-mark {
-  color: var(--pdf-primary-dark);
-  font-family: "Gistesy", "Magnólia Script", "Brush Script MT", "Segoe Script", cursive;
+  color: #000000;
+  font-family: "Gistesy", cursive;
   font-size: 58pt;
   line-height: 1;
   font-weight: 400;
@@ -761,7 +774,7 @@ textarea:focus {
 }
 
 .signature-caption {
-  color: var(--pdf-muted);
+  color: #000000;
   font-size: 10pt;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -776,7 +789,7 @@ textarea:focus {
   padding: 8mm;
   border: 1px dashed var(--pdf-border);
   border-radius: 5mm;
-  color: var(--pdf-muted);
+  color: #000000;
   text-align: center;
 }
 

@@ -1,4 +1,4 @@
-const STORAGE_KEY = "orcamento-floral-v1";
+const STORAGE_KEY = "orcamento-floral-v2";
 const LOGO_SRC = "assets/logo_bouquet_flores.png";
 
 const defaultState = {
@@ -52,6 +52,7 @@ const els = {
 init();
 
 function init() {
+  ensureMainColor();
   renderEditor();
   renderPreview();
   bindEvents();
@@ -151,7 +152,9 @@ function handleChange(event) {
   const item = state.palette.find(x => x.id === el.dataset.id);
   if (!item) return;
 
-  item.main = el.checked;
+  state.palette.forEach(color => {
+    color.main = color.id === item.id;
+  });
   ensureMainColor();
   saveRenderAll();
 }
@@ -262,7 +265,7 @@ function renderEditor() {
         </label>
       </div>
       <label class="inline-check">
-        <input type="checkbox" data-section="palette" data-id="${item.id}" data-field="main" ${item.main ? "checked" : ""}>
+        <input type="radio" name="mainColor" data-section="palette" data-id="${item.id}" data-field="main" ${item.main ? "checked" : ""}>
         Cor principal
       </label>
       <div class="actions">
@@ -337,8 +340,8 @@ function renderPreview() {
 function renderCoverPage() {
   const fields = state.coverFields.filter(item => (item.label || item.value || "").trim());
   const fieldsHtml = fields.length
-    ? fields.map((item, index) => `
-      <div class="cover-field ${isLongField(item.value) ? "full" : ""}">
+    ? fields.map(item => `
+      <div class="cover-field full">
         <b>${escapeHtml(item.label || "Informação")}</b>
         <span>${escapeHtml(item.value || "—")}</span>
       </div>
@@ -392,9 +395,6 @@ function renderPalettePage() {
           ${paletteHtml || `<div class="empty-state">Adicione cores no editor.</div>`}
         </div>
 
-        <div class="palette-note">
-          As cores principais guiam os tons do documento. O layout ajusta fundos, margens e textos para manter contraste e boa leitura.
-        </div>
       </div>
     </article>
   `;
@@ -406,7 +406,7 @@ function renderInspirationPages() {
       <article class="sheet inspiration-page">
         <div class="sheet-content">
           <p class="page-kicker">Inspirações</p>
-          <h2 class="page-title">Referências visuais</h2>
+          <h2 class="page-title">Inspirações</h2>
           <div class="empty-state">Adicione fotos de inspiração no editor.</div>
         </div>
       </article>
@@ -419,7 +419,7 @@ function renderInspirationPages() {
       <article class="sheet inspiration-page">
         <div class="sheet-content">
           <p class="page-kicker">Inspirações ${pageIndex + 1}</p>
-          <h2 class="page-title">Referências visuais</h2>
+          <h2 class="page-title">Inspirações</h2>
           <div class="inspiration-grid">
             ${slots.map(item => item
               ? `<div class="inspiration-slot"><img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}"></div>`
@@ -540,15 +540,15 @@ function applyTheme() {
     .map(item => normalizeHex(item.hex));
 
   const primary = mainColors[0] || validPalette[0] || "#7D1225";
-  const accent = mainColors[1] || validPalette.find(hex => hex !== primary) || shiftLightness(primary, -12);
+  const accent = shiftLightness(primary, -12);
   const primaryDark = shiftLightness(primary, -28);
   const primarySoft = mix(primary, "#ffffff", 0.72);
   const primaryPale = mix(primary, "#ffffff", 0.91);
   const paper = mix(primary, "#ffffff", 0.96);
   const border = mix(primary, "#ffffff", 0.78);
-  const onPrimary = bestTextColor(primary);
-  const ink = bestTextColor(paper) === "#ffffff" ? "#ffffff" : "#211719";
-  const muted = bestTextColor(paper) === "#ffffff" ? "#f1e9e7" : "#6f6063";
+  const onPrimary = "#000000";
+  const ink = "#000000";
+  const muted = "#000000";
 
   const vars = {
     "--pdf-primary": primary,
@@ -574,10 +574,17 @@ function ensureMainColor() {
     state.palette.push({ id: cryptoId(), name: "Marsala", hex: "#7D1225", main: true });
   }
 
-  if (!state.palette.some(item => item.main)) {
+  const firstMainIndex = state.palette.findIndex(item => item.main);
+
+  if (firstMainIndex === -1) {
     state.palette[0].main = true;
     setStatus("Mantive uma cor principal marcada.");
+    return;
   }
+
+  state.palette.forEach((item, index) => {
+    item.main = index === firstMainIndex;
+  });
 }
 
 function saveRenderAll() {
