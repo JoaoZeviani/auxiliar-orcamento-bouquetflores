@@ -1,0 +1,28 @@
+{
+  "name": "Auxiliar de Orçamento Floral",
+  "short_name": "Orçamento Floral",
+  "description": "Auxiliar para criar orçamentos florais da Bouquet Flores e gerar PDF para clientes.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F5EBE3",
+  "theme_color": "#7D1225",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
