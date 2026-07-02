@@ -1,6 +1,6 @@
-AUXILIAR DE ORÇAMENTO FLORAL
+# AUXILIAR DE ORÇAMENTO FLORAL
 
-Como usar:
+## Como usar:
 1. Abra o arquivo index.html no navegador.
 2. Preencha os dados da capa.
 3. Monte a paleta de cores e escolha uma única cor principal.
@@ -9,7 +9,7 @@ Como usar:
 6. Clique em "Gerar PDF / Imprimir".
 7. Na janela de impressão, escolha "Salvar como PDF".
 
-Observações importantes:
+## Observações importantes:
 - O programa é estático: não precisa instalar servidor, Node, banco ou internet.
 - Os dados ficam salvos no armazenamento local do navegador usado.
 - A logo usada foi extraída da tabela Imagens do banco anexado, registro "Logotipo".
@@ -17,11 +17,4 @@ Observações importantes:
 - O PDF usa texto preto e utiliza a cor principal apenas em fundos, bordas e detalhes.
 - O total aparece como "Investimento Floral" e soma os preços dos itens do orçamento.
 - O app carrega Clear Sans, Magnolia Script e Gistesy por webfont quando estiver online. Se alguma fonte não carregar, o PDF usa Clear Sans/Arial como fallback, nunca uma fonte cursiva genérica.
-- Para as cores e fundos aparecerem corretamente no PDF, deixe a opção de imprimir gráficos/fundos ativada no navegador quando necessário.
-
-
-Alterações desta versão:
-- Ícone do app aplicado também no topo esquerdo da interface.
-- PDF sem negrito.
-- Assinatura final com Patricia Zeviani e Bouquet Flores na fonte Gistesy.
-- O app carrega Clear Sans, Magnolia Script e Gistesy automaticamente via webfont quando há internet.
+- Para as cores e fundos aparecerem corretamente no PDF, deixe a opção de imprimir gráficos/fundos ativada no navegador quando necessário
