@@ -46,11 +46,15 @@
 
 html {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   color: var(--ui-ink);
   background:
     radial-gradient(circle at top left, rgba(125, 18, 37, .12), transparent 32rem),
@@ -351,7 +355,10 @@ textarea:focus {
 }
 
 .preview-wrap {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .preview-toolbar {
@@ -375,10 +382,23 @@ textarea:focus {
 }
 
 .pdf-document {
+  --preview-scale: 1;
+  --sheet-frame-width: 210mm;
+  --sheet-frame-height: 297mm;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  overflow-x: hidden;
+}
+
+.sheet-frame {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 100%;
 }
 
 .sheet {
@@ -835,14 +855,43 @@ textarea:focus {
     top: 76px;
   }
 
+  .app-shell,
+  .preview-wrap,
   .pdf-document {
-    align-items: flex-start;
-    overflow-x: auto;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .pdf-document {
+    align-items: center;
     padding-bottom: 1rem;
+  }
+
+  .sheet-frame {
+    width: var(--sheet-frame-width);
+    min-width: 0;
+    min-height: 0;
+    height: var(--sheet-frame-height);
+    overflow: hidden;
+  }
+
+  .sheet-frame .sheet {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) scale(var(--preview-scale));
+    transform-origin: top center;
+    box-shadow: 0 10px 28px rgba(45, 21, 10, .2);
   }
 }
 
 @media (max-width: 640px) {
+  .preview-toolbar {
+    position: static;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -903,7 +952,19 @@ textarea:focus {
     padding: 0;
   }
 
+  .sheet-frame {
+    display: contents !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
   .sheet {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
     width: 210mm;
     min-height: 297mm;
     height: 297mm;

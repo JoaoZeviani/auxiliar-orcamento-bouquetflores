@@ -355,14 +355,19 @@ function updatePreviewScale() {
 
   const sheetWidthPx = 794;
   const sheetHeightPx = 1123;
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth || sheetWidthPx;
   const previewParent = els.preview.parentElement;
-  const availableWidth = previewParent ? previewParent.clientWidth : window.innerWidth;
-  const safeWidth = Math.max(260, availableWidth);
-  const scale = Math.min(1, safeWidth / sheetWidthPx);
+  const parentWidth = previewParent ? previewParent.getBoundingClientRect().width : viewportWidth;
+
+  const reservedPadding = viewportWidth <= 640 ? 28 : 48;
+  const availableWidth = Math.min(parentWidth, viewportWidth) - reservedPadding;
+  const frameWidth = Math.max(220, Math.floor(Math.min(sheetWidthPx, availableWidth)));
+  const scale = Math.min(1, frameWidth / sheetWidthPx);
+  const frameHeight = Math.ceil(sheetHeightPx * scale);
 
   els.preview.style.setProperty("--preview-scale", scale.toFixed(4));
-  els.preview.style.setProperty("--sheet-frame-width", `${Math.floor(sheetWidthPx * scale)}px`);
-  els.preview.style.setProperty("--sheet-frame-height", `${Math.floor(sheetHeightPx * scale)}px`);
+  els.preview.style.setProperty("--sheet-frame-width", `${frameWidth}px`);
+  els.preview.style.setProperty("--sheet-frame-height", `${frameHeight}px`);
 }
 
 function renderCoverPage() {
