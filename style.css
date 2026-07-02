@@ -755,9 +755,14 @@ textarea:focus {
 
 .budget-investment-divider {
   width: 100%;
-  height: .35mm;
-  margin: 6mm 0 4mm;
-  background: var(--pdf-border);
+  height: 0;
+  margin: 11mm 0 5mm;
+  border-top: .35mm solid var(--pdf-border);
+  background: transparent;
+}
+
+.budget-list + .budget-investment-divider {
+  margin-top: 12mm;
 }
 
 .total-box {
@@ -808,6 +813,17 @@ textarea:focus {
   white-space: pre-line;
   line-height: 1.52;
   font-size: 14.5pt;
+}
+
+.budget-note {
+  margin: 4.5mm 0 0;
+  padding: 4.5mm 5.2mm;
+  border-radius: 4mm;
+  background: var(--pdf-surface);
+  border: 1px solid var(--pdf-border);
+  color: #000000;
+  font-size: 13.6pt;
+  line-height: 1.42;
 }
 
 .budget-summary-spacer {

@@ -571,6 +571,8 @@ function renderBudgetPages() {
 
 function renderBudgetSummary(total) {
   return `
+    <div class="budget-investment-divider" aria-hidden="true"></div>
+
     <div class="total-box">
       <span>Investimento Floral</span>
       <span class="total-value">${formatMoney(total)}</span>
@@ -580,6 +582,8 @@ function renderBudgetSummary(total) {
       <h3>Condições de pagamento</h3>
       ${state.payment.terms ? `<p>${escapeHtml(state.payment.terms)}</p>` : ""}
     </div>
+
+    <p class="budget-note">Observação: este orçamento é uma estimativa e os valores podem sofrer alterações.</p>
   `;
 }
 
