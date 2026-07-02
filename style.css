@@ -385,6 +385,16 @@ textarea:focus {
   overflow-x: hidden;
 }
 
+.save-status-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .preview-toolbar {
   position: sticky;
   top: 84px;
@@ -500,21 +510,21 @@ textarea:focus {
 .pdf-page-logo {
   position: absolute;
   z-index: 2;
-  top: 14mm;
-  right: 18mm;
-  width: 28mm;
-  max-width: 28mm;
+  top: 13mm;
+  right: 17mm;
+  width: 36mm;
+  max-width: 36mm;
   height: auto;
-  max-height: 13mm;
+  max-height: 17mm;
   object-fit: contain;
 }
 
 .sheet:not(.cover-page) .sheet-content {
-  padding-top: 9mm;
+  padding-top: 11mm;
 }
 
 .sheet:not(.cover-page) .page-title {
-  padding-right: 34mm;
+  padding-right: 45mm;
 }
 
 .cover-page .sheet-content {
@@ -547,8 +557,8 @@ textarea:focus {
   margin: 0 auto 11mm;
   max-width: 130mm;
   color: #000000;
-  font-size: 12.4pt;
-  line-height: 1.55;
+  font-size: 13.6pt;
+  line-height: 1.58;
   white-space: pre-line;
 }
 
@@ -577,7 +587,7 @@ textarea:focus {
   display: block;
   margin-bottom: 1.5mm;
   color: #000000;
-  font-size: 9.4pt;
+  font-size: 10.2pt;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -585,8 +595,8 @@ textarea:focus {
 .cover-field span {
   display: block;
   color: var(--pdf-ink);
-  font-size: 12.2pt;
-  line-height: 1.35;
+  font-size: 13.2pt;
+  line-height: 1.4;
   white-space: pre-line;
 }
 
@@ -637,12 +647,12 @@ textarea:focus {
 .swatch-name {
   display: block;
   color: #000000;
-  font-size: 12pt;
+  font-size: 13.2pt;
 }
 
 .swatch-info span {
   color: #000000;
-  font-size: 9.4pt;
+  font-size: 10.5pt;
 }
 
 .main-badge {
@@ -653,7 +663,7 @@ textarea:focus {
   color: #000000;
   background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
-  font-size: 7.5pt;
+  font-size: 8.3pt;
   font-weight: 400;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -699,7 +709,7 @@ textarea:focus {
   justify-content: center;
   color: #000000;
   border-style: dashed;
-  font-size: 9pt;
+  font-size: 10.5pt;
 }
 
 .budget-list {
@@ -710,9 +720,9 @@ textarea:focus {
 
 .budget-row {
   display: grid;
-  grid-template-columns: 1fr 34mm;
+  grid-template-columns: 1fr 38mm;
   gap: 5mm;
-  padding: 4.3mm;
+  padding: 4.4mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -722,14 +732,14 @@ textarea:focus {
 .budget-row h3 {
   margin: 0 0 1.5mm;
   color: #000000;
-  font-size: 13pt;
+  font-size: 14.2pt;
 }
 
 .budget-row p {
   margin: 0;
   color: #000000;
-  font-size: 10pt;
-  line-height: 1.42;
+  font-size: 11.2pt;
+  line-height: 1.44;
   white-space: pre-line;
 }
 
@@ -738,7 +748,7 @@ textarea:focus {
   align-items: center;
   justify-content: flex-end;
   color: #000000;
-  font-size: 12pt;
+  font-size: 13.2pt;
   font-weight: 400;
   text-align: right;
 }
@@ -758,7 +768,7 @@ textarea:focus {
 
 .total-box span {
   display: block;
-  font-size: 10pt;
+  font-size: 11pt;
   letter-spacing: .1em;
   text-transform: uppercase;
   font-weight: 400;
@@ -767,7 +777,7 @@ textarea:focus {
 .total-value {
   display: block;
   margin-top: 1mm;
-  font-size: 24pt;
+  font-size: 26pt;
   font-weight: 400 !important;
 }
 
@@ -782,15 +792,20 @@ textarea:focus {
 .payment-box h3 {
   margin: 0 0 2mm;
   color: #000000;
-  font-size: 12.5pt;
+  font-size: 13.6pt;
 }
 
 .payment-box p {
   margin: 0;
   color: var(--pdf-ink);
   white-space: pre-line;
-  line-height: 1.5;
-  font-size: 10.4pt;
+  line-height: 1.52;
+  font-size: 11.4pt;
+}
+
+.budget-summary-spacer {
+  flex: 1;
+  min-height: 120mm;
 }
 
 .included-list {
@@ -800,31 +815,18 @@ textarea:focus {
 }
 
 .included-item {
-  display: grid;
-  grid-template-columns: 9mm 1fr;
-  gap: 3mm;
-  align-items: start;
-  padding: 4.4mm;
+  display: block;
+  padding: 4.8mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
   color: var(--pdf-ink);
-  font-size: 11pt;
-  line-height: 1.45;
+  font-size: 12.2pt;
+  line-height: 1.48;
 }
 
 .included-bullet {
-  width: 8mm;
-  height: 8mm;
-  border-radius: 50%;
-  color: #000000;
-  background: var(--pdf-primary-pale);
-  border: 1px solid var(--pdf-border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 400;
-  font-size: 8pt;
+  display: none;
 }
 
 .signature-page .sheet-content {
@@ -868,6 +870,7 @@ textarea:focus {
   border-radius: 5mm;
   color: #000000;
   text-align: center;
+  font-size: 11.5pt;
 }
 
 @media (max-width: 1120px) {

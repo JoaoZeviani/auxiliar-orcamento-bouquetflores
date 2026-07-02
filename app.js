@@ -523,15 +523,20 @@ function renderInspirationPages() {
 
 function renderBudgetPages() {
   const items = state.budgetItems.filter(item => item.name || item.description || item.price);
-  const pages = chunk(items, 5);
+  const pages = paginateBudgetItems(items);
   const total = items.reduce((sum, item) => sum + parseMoney(item.price), 0);
 
   if (!items.length) {
     pages.push([]);
   }
 
-  return pages.map((pageItems, index) => {
+  const lastPage = pages[pages.length - 1] || [];
+  const summaryOnSeparatePage = items.length > 0 && getBudgetPageUnits(lastPage) > 6.45;
+
+  const budgetPages = pages.map((pageItems, index) => {
     const isLast = index === pages.length - 1;
+    const showSummary = isLast && !summaryOnSeparatePage;
+
     return `
       <article class="sheet budget-page">
         ${renderSmallPageLogo()}
@@ -543,21 +548,79 @@ function renderBudgetPages() {
             : `<div class="empty-state empty-state-blank"></div>`
           }
 
-          ${isLast ? `
-            <div class="total-box">
-              <span>Investimento Floral</span>
-              <span class="total-value">${formatMoney(total)}</span>
-            </div>
-
-            <div class="payment-box">
-              <h3>Condições de pagamento</h3>
-              ${state.payment.terms ? `<p>${escapeHtml(state.payment.terms)}</p>` : ""}
-            </div>
-          ` : ""}
+          ${showSummary ? renderBudgetSummary(total) : ""}
         </div>
       </article>
     `;
   });
+
+  if (summaryOnSeparatePage) {
+    budgetPages.push(`
+      <article class="sheet budget-page">
+        ${renderSmallPageLogo()}
+        <div class="sheet-content">
+          <h2 class="page-title">Orçamento</h2>
+          <div class="budget-summary-spacer"></div>
+          ${renderBudgetSummary(total)}
+        </div>
+      </article>
+    `);
+  }
+
+  return budgetPages;
+}
+
+function renderBudgetSummary(total) {
+  return `
+    <div class="total-box">
+      <span>Investimento Floral</span>
+      <span class="total-value">${formatMoney(total)}</span>
+    </div>
+
+    <div class="payment-box">
+      <h3>Condições de pagamento</h3>
+      ${state.payment.terms ? `<p>${escapeHtml(state.payment.terms)}</p>` : ""}
+    </div>
+  `;
+}
+
+function paginateBudgetItems(items) {
+  if (!items.length) return [];
+
+  const pages = [];
+  let currentPage = [];
+  let currentUnits = 0;
+  const maxPageUnits = 8.85;
+
+  items.forEach(item => {
+    const itemUnits = estimateBudgetItemUnits(item);
+    const shouldStartNewPage = currentPage.length > 0 && currentUnits + itemUnits > maxPageUnits;
+
+    if (shouldStartNewPage) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentUnits = 0;
+    }
+
+    currentPage.push(item);
+    currentUnits += itemUnits;
+  });
+
+  if (currentPage.length) pages.push(currentPage);
+  return pages;
+}
+
+function getBudgetPageUnits(items) {
+  return items.reduce((sum, item) => sum + estimateBudgetItemUnits(item), 0);
+}
+
+function estimateBudgetItemUnits(item) {
+  const nameLength = String(item.name || "").trim().length;
+  const descriptionLength = String(item.description || "").trim().length;
+  const nameLines = Math.max(1, Math.ceil(nameLength / 34));
+  const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / 92) : 1;
+
+  return 1 + Math.max(0, nameLines - 1) * 0.22 + Math.max(0, descriptionLines - 1) * 0.36;
 }
 
 function renderBudgetItem(item) {
@@ -593,9 +656,8 @@ function renderIncludedPages() {
       <div class="sheet-content">
         <h2 class="page-title">O que está incluso no orçamento</h2>
         <div class="included-list">
-          ${items.map((item, index) => `
+          ${items.map(item => `
             <div class="included-item">
-              <span class="included-bullet">${pageIndex * 10 + index + 1}</span>
               <span>${escapeHtml(item.text)}</span>
             </div>
           `).join("")}
