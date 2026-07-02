@@ -754,7 +754,7 @@ textarea:focus {
 }
 
 .total-box {
-  margin-top: auto;
+  margin-top: 6mm;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -804,8 +804,9 @@ textarea:focus {
 }
 
 .budget-summary-spacer {
-  flex: 1;
-  min-height: 120mm;
+  display: none;
+  flex: 0;
+  min-height: 0;
 }
 
 .included-list {

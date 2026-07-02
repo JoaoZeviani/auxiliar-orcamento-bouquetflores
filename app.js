@@ -560,7 +560,6 @@ function renderBudgetPages() {
         ${renderSmallPageLogo()}
         <div class="sheet-content">
           <h2 class="page-title">Orçamento</h2>
-          <div class="budget-summary-spacer"></div>
           ${renderBudgetSummary(total)}
         </div>
       </article>
