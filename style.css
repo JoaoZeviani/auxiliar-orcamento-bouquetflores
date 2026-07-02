@@ -753,8 +753,15 @@ textarea:focus {
   text-align: right;
 }
 
+.budget-investment-divider {
+  width: 100%;
+  height: .35mm;
+  margin: 6mm 0 4mm;
+  background: var(--pdf-border);
+}
+
 .total-box {
-  margin-top: 6mm;
+  margin-top: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
