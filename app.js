@@ -531,7 +531,7 @@ function renderBudgetPages() {
   }
 
   const lastPage = pages[pages.length - 1] || [];
-  const summaryOnSeparatePage = items.length > 0 && getBudgetPageUnits(lastPage) > 6.45;
+  const summaryOnSeparatePage = items.length > 0 && getBudgetPageUnits(lastPage) > 5.35;
 
   const budgetPages = pages.map((pageItems, index) => {
     const isLast = index === pages.length - 1;
@@ -589,7 +589,7 @@ function paginateBudgetItems(items) {
   const pages = [];
   let currentPage = [];
   let currentUnits = 0;
-  const maxPageUnits = 8.85;
+  const maxPageUnits = 7.35;
 
   items.forEach(item => {
     const itemUnits = estimateBudgetItemUnits(item);
@@ -616,10 +616,10 @@ function getBudgetPageUnits(items) {
 function estimateBudgetItemUnits(item) {
   const nameLength = String(item.name || "").trim().length;
   const descriptionLength = String(item.description || "").trim().length;
-  const nameLines = Math.max(1, Math.ceil(nameLength / 34));
-  const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / 92) : 1;
+  const nameLines = Math.max(1, Math.ceil(nameLength / 28));
+  const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / 76) : 1;
 
-  return 1 + Math.max(0, nameLines - 1) * 0.22 + Math.max(0, descriptionLines - 1) * 0.36;
+  return 1.15 + Math.max(0, nameLines - 1) * 0.34 + Math.max(0, descriptionLines - 1) * 0.52;
 }
 
 function renderBudgetItem(item) {

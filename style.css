@@ -512,10 +512,10 @@ textarea:focus {
   z-index: 2;
   top: 13mm;
   right: 17mm;
-  width: 36mm;
-  max-width: 36mm;
+  width: 46mm;
+  max-width: 46mm;
   height: auto;
-  max-height: 17mm;
+  max-height: 23mm;
   object-fit: contain;
 }
 
@@ -524,7 +524,7 @@ textarea:focus {
 }
 
 .sheet:not(.cover-page) .page-title {
-  padding-right: 45mm;
+  padding-right: 57mm;
 }
 
 .cover-page .sheet-content {
@@ -557,7 +557,7 @@ textarea:focus {
   margin: 0 auto 11mm;
   max-width: 130mm;
   color: #000000;
-  font-size: 13.6pt;
+  font-size: 16pt;
   line-height: 1.58;
   white-space: pre-line;
 }
@@ -571,8 +571,8 @@ textarea:focus {
 }
 
 .cover-field {
-  min-height: 17mm;
-  padding: 4mm;
+  min-height: 20mm;
+  padding: 6mm;
   border-radius: 4mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -587,7 +587,7 @@ textarea:focus {
   display: block;
   margin-bottom: 1.5mm;
   color: #000000;
-  font-size: 10.2pt;
+  font-size: 15pt;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -595,7 +595,7 @@ textarea:focus {
 .cover-field span {
   display: block;
   color: var(--pdf-ink);
-  font-size: 13.2pt;
+  font-size: 16pt;
   line-height: 1.4;
   white-space: pre-line;
 }
@@ -630,14 +630,14 @@ textarea:focus {
 
 .swatch-card {
   overflow: hidden;
-  min-height: 34mm;
+  min-height: 39mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
 }
 
 .swatch-color {
-  min-height: 18mm;
+  min-height: 21mm;
 }
 
 .swatch-info {
@@ -647,23 +647,23 @@ textarea:focus {
 .swatch-name {
   display: block;
   color: #000000;
-  font-size: 13.2pt;
+  font-size: 16pt;
 }
 
 .swatch-info span {
   color: #000000;
-  font-size: 10.5pt;
+  font-size: 12.8pt;
 }
 
 .main-badge {
   display: inline-block;
   margin-top: 2.2mm;
-  padding: 1.2mm 2.4mm;
+  padding: 1.5mm 2.8mm;
   border-radius: 999px;
   color: #000000;
   background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
-  font-size: 8.3pt;
+  font-size: 10pt;
   font-weight: 400;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -671,7 +671,7 @@ textarea:focus {
 
 .palette-note {
   margin-top: auto;
-  padding: 5mm;
+  padding: 6mm;
   border-left: 1.3mm solid var(--pdf-primary);
   border-radius: 0 4mm 4mm 0;
   background: var(--pdf-primary-pale);
@@ -709,20 +709,20 @@ textarea:focus {
   justify-content: center;
   color: #000000;
   border-style: dashed;
-  font-size: 10.5pt;
+  font-size: 12.8pt;
 }
 
 .budget-list {
   display: flex;
   flex-direction: column;
-  gap: 4mm;
+  gap: 4.5mm;
 }
 
 .budget-row {
   display: grid;
-  grid-template-columns: 1fr 38mm;
+  grid-template-columns: 1fr 45mm;
   gap: 5mm;
-  padding: 4.4mm;
+  padding: 5.4mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -732,13 +732,13 @@ textarea:focus {
 .budget-row h3 {
   margin: 0 0 1.5mm;
   color: #000000;
-  font-size: 14.2pt;
+  font-size: 17pt;
 }
 
 .budget-row p {
   margin: 0;
   color: #000000;
-  font-size: 11.2pt;
+  font-size: 14pt;
   line-height: 1.44;
   white-space: pre-line;
 }
@@ -748,7 +748,7 @@ textarea:focus {
   align-items: center;
   justify-content: flex-end;
   color: #000000;
-  font-size: 13.2pt;
+  font-size: 16pt;
   font-weight: 400;
   text-align: right;
 }
@@ -759,7 +759,7 @@ textarea:focus {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 8mm;
-  padding: 6mm;
+  padding: 7.5mm;
   border-radius: 6mm;
   color: #000000;
   background: var(--pdf-primary-pale);
@@ -768,7 +768,7 @@ textarea:focus {
 
 .total-box span {
   display: block;
-  font-size: 11pt;
+  font-size: 13.2pt;
   letter-spacing: .1em;
   text-transform: uppercase;
   font-weight: 400;
@@ -777,13 +777,13 @@ textarea:focus {
 .total-value {
   display: block;
   margin-top: 1mm;
-  font-size: 26pt;
+  font-size: 31pt;
   font-weight: 400 !important;
 }
 
 .payment-box {
   margin-top: 5mm;
-  padding: 5mm;
+  padding: 6mm;
   border-radius: 5mm;
   background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
@@ -792,7 +792,7 @@ textarea:focus {
 .payment-box h3 {
   margin: 0 0 2mm;
   color: #000000;
-  font-size: 13.6pt;
+  font-size: 16pt;
 }
 
 .payment-box p {
@@ -800,7 +800,7 @@ textarea:focus {
   color: var(--pdf-ink);
   white-space: pre-line;
   line-height: 1.52;
-  font-size: 11.4pt;
+  font-size: 14.5pt;
 }
 
 .budget-summary-spacer {
@@ -817,12 +817,12 @@ textarea:focus {
 
 .included-item {
   display: block;
-  padding: 4.8mm;
+  padding: 5.6mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
   color: var(--pdf-ink);
-  font-size: 12.2pt;
+  font-size: 15pt;
   line-height: 1.48;
 }
 
@@ -839,7 +839,7 @@ textarea:focus {
 .signature-mark {
   color: #805630 !important;
   font-family: "Gistesy", "Gistesy Local", "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
-  font-size: 58pt;
+  font-size: 66pt;
   line-height: 1;
   font-weight: 400 !important;
 }
@@ -854,7 +854,7 @@ textarea:focus {
 .signature-caption {
   color: #805630 !important;
   font-family: "Gistesy", "Gistesy Local", "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
-  font-size: 28pt;
+  font-size: 34pt;
   line-height: 1;
   letter-spacing: 0;
   text-transform: none;
