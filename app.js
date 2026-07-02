@@ -88,7 +88,7 @@ function bindEvents() {
       setStatus("Limite de 10 cores atingido.");
       return;
     }
-    const item = { id: cryptoId(), name: "", hex: "#7D1225", main: state.palette.length === 0 };
+    const item = { id: cryptoId(), name: "", hex: "#4d1225", main: state.palette.length === 0 };
     state.palette.push(item);
     ensureMainColor();
     saveRenderAll(item.id);
@@ -691,7 +691,7 @@ function applyTheme() {
     .filter(item => isValidHex(item.hex))
     .map(item => normalizeHex(item.hex));
 
-  const primary = mainColors[0] || validPalette[0] || "#7D1225";
+  const primary = mainColors[0] || validPalette[0] || "#4d1225";
   const accent = shiftLightness(primary, -12);
   const primaryDark = shiftLightness(primary, -28);
   const primarySoft = mix(primary, "#ffffff", 0.72);
@@ -810,7 +810,7 @@ function removeLegacyExampleData(data) {
 
   if (Array.isArray(data.palette) && data.palette.length === 3) {
     const legacyPalette = [
-      ["Marsala", "#7D1225", true],
+      ["Marsala", "#4d1225", true],
       ["Creme", "#F5EBE3", false],
       ["Bronze", "#805630", false]
     ];
@@ -839,7 +839,7 @@ function removeLegacyExampleData(data) {
 
 function createFakeState() {
   const palette = [
-    { id: cryptoId(), name: "Marsala", hex: "#7D1225", main: true },
+    { id: cryptoId(), name: "Marsala", hex: "#4d1225", main: true },
     { id: cryptoId(), name: "Creme", hex: "#F5EBE3", main: false },
     { id: cryptoId(), name: "Bronze", hex: "#805630", main: false },
     { id: cryptoId(), name: "Verde oliva", hex: "#6F7A45", main: false }
@@ -858,12 +858,12 @@ function createFakeState() {
     ],
     palette,
     inspirations: [
-      createFakeInspiration(1, "Mesa floral", "#7D1225", "#F5EBE3"),
+      createFakeInspiration(1, "Mesa floral", "#4d1225", "#F5EBE3"),
       createFakeInspiration(2, "Arranjo aéreo", "#805630", "#F5EBE3"),
       createFakeInspiration(3, "Cerimônia", "#6F7A45", "#F5EBE3"),
-      createFakeInspiration(4, "Buquê", "#7D1225", "#805630"),
-      createFakeInspiration(5, "Recepção", "#F5EBE3", "#7D1225"),
-      createFakeInspiration(6, "Detalhes", "#805630", "#7D1225")
+      createFakeInspiration(4, "Buquê", "#4d1225", "#805630"),
+      createFakeInspiration(5, "Recepção", "#F5EBE3", "#4d1225"),
+      createFakeInspiration(6, "Detalhes", "#805630", "#4d1225")
     ],
     budgetItems: [
       {
@@ -991,7 +991,7 @@ function normalizeHex(hex) {
   if (/^#[0-9a-fA-F]{3}$/.test(text)) {
     return `#${text[1]}${text[1]}${text[2]}${text[2]}${text[3]}${text[3]}`;
   }
-  return "#7D1225";
+  return "#4d1225";
 }
 
 function isValidHex(hex) {
