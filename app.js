@@ -673,7 +673,6 @@ function renderIncludedPages() {
 function renderSignaturePage() {
   return `
     <article class="sheet signature-page">
-      ${renderSmallPageLogo()}
       <div class="sheet-content">
         <div>
           <div class="signature-mark">Patricia Zeviani</div>
