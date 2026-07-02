@@ -78,8 +78,9 @@ function bindEvents() {
   });
 
   els.btnAddCoverField.addEventListener("click", () => {
-    state.coverFields.push({ id: cryptoId(), label: "", value: "" });
-    saveRenderAll();
+    const item = { id: cryptoId(), label: "", value: "" };
+    state.coverFields.push(item);
+    saveRenderAll(item.id);
   });
 
   els.btnAddColor.addEventListener("click", () => {
@@ -87,19 +88,22 @@ function bindEvents() {
       setStatus("Limite de 10 cores atingido.");
       return;
     }
-    state.palette.push({ id: cryptoId(), name: "", hex: "#7D1225", main: state.palette.length === 0 });
+    const item = { id: cryptoId(), name: "", hex: "#7D1225", main: state.palette.length === 0 };
+    state.palette.push(item);
     ensureMainColor();
-    saveRenderAll();
+    saveRenderAll(item.id);
   });
 
   els.btnAddBudgetItem.addEventListener("click", () => {
-    state.budgetItems.push({ id: cryptoId(), name: "", description: "", price: "" });
-    saveRenderAll();
+    const item = { id: cryptoId(), name: "", description: "", price: "" };
+    state.budgetItems.push(item);
+    saveRenderAll(item.id);
   });
 
   els.btnAddIncluded.addEventListener("click", () => {
-    state.includedTopics.push({ id: cryptoId(), text: "" });
-    saveRenderAll();
+    const item = { id: cryptoId(), text: "" };
+    state.includedTopics.push(item);
+    saveRenderAll(item.id);
   });
 }
 
@@ -163,6 +167,7 @@ function handleClick(event) {
 
   const action = button.dataset.action;
   const id = button.dataset.id;
+  let scrollTargetId = null;
 
   if (action === "remove-cover-field") {
     state.coverFields = state.coverFields.filter(x => x.id !== id);
@@ -185,7 +190,20 @@ function handleClick(event) {
     state.includedTopics = state.includedTopics.filter(x => x.id !== id);
   }
 
-  saveRenderAll();
+  if (action === "move-cover-field-up") scrollTargetId = moveItem(state.coverFields, id, -1);
+  if (action === "move-cover-field-down") scrollTargetId = moveItem(state.coverFields, id, 1);
+  if (action === "move-color-up") scrollTargetId = moveItem(state.palette, id, -1);
+  if (action === "move-color-down") scrollTargetId = moveItem(state.palette, id, 1);
+  if (action === "move-inspiration-up") scrollTargetId = moveItem(state.inspirations, id, -1);
+  if (action === "move-inspiration-down") scrollTargetId = moveItem(state.inspirations, id, 1);
+  if (action === "move-budget-item-up") scrollTargetId = moveItem(state.budgetItems, id, -1);
+  if (action === "move-budget-item-down") scrollTargetId = moveItem(state.budgetItems, id, 1);
+  if (action === "move-included-up") scrollTargetId = moveItem(state.includedTopics, id, -1);
+  if (action === "move-included-down") scrollTargetId = moveItem(state.includedTopics, id, 1);
+
+  if (action.startsWith("move-color")) ensureMainColor();
+
+  saveRenderAll(scrollTargetId);
 }
 
 function handleImageUpload(event) {
@@ -193,6 +211,7 @@ function handleImageUpload(event) {
   if (!files.length) return;
 
   let pending = files.length;
+  let lastUploadedId = null;
 
   files.forEach(file => {
     if (!file.type.startsWith("image/")) {
@@ -202,16 +221,18 @@ function handleImageUpload(event) {
 
     const reader = new FileReader();
     reader.onload = () => {
-      state.inspirations.push({
+      const item = {
         id: cryptoId(),
         name: file.name,
         dataUrl: reader.result
-      });
+      };
+      state.inspirations.push(item);
+      lastUploadedId = item.id;
 
       pending -= 1;
       if (pending === 0) {
         event.target.value = "";
-        saveRenderAll();
+        saveRenderAll(lastUploadedId);
       }
     };
 
@@ -219,7 +240,7 @@ function handleImageUpload(event) {
       pending -= 1;
       if (pending === 0) {
         event.target.value = "";
-        saveRenderAll();
+        saveRenderAll(lastUploadedId);
       }
     };
 
@@ -246,8 +267,8 @@ function renderEditor() {
   document.querySelector('[data-section="cover"][data-field="intro"]').value = state.cover.intro || "";
   document.querySelector('[data-section="payment"][data-field="terms"]').value = state.payment.terms || "";
 
-  els.coverFieldsEditor.innerHTML = state.coverFields.map(item => `
-    <div class="editor-card">
+  els.coverFieldsEditor.innerHTML = state.coverFields.map((item, index) => `
+    <div class="editor-card" data-editor-item-id="${item.id}">
       <div class="card-grid">
         <label>
           Nome do campo
@@ -259,13 +280,14 @@ function renderEditor() {
         </label>
       </div>
       <div class="actions">
+        ${renderMoveButtons("cover-field", item.id, index, state.coverFields.length)}
         <button class="mini danger" type="button" data-action="remove-cover-field" data-id="${item.id}">Remover</button>
       </div>
     </div>
   `).join("");
 
   els.paletteEditor.innerHTML = state.palette.map((item, index) => `
-    <div class="editor-card">
+    <div class="editor-card" data-editor-item-id="${item.id}">
       <div class="card-grid">
         <label>
           Nome
@@ -281,6 +303,7 @@ function renderEditor() {
         Cor principal
       </label>
       <div class="actions">
+        ${renderMoveButtons("color", item.id, index, state.palette.length)}
         <button class="mini danger" type="button" data-action="remove-color" data-id="${item.id}" ${state.palette.length <= 1 ? "disabled" : ""}>Remover</button>
       </div>
     </div>
@@ -289,16 +312,19 @@ function renderEditor() {
   els.btnAddColor.disabled = state.palette.length >= 10;
 
   els.inspirationsEditor.innerHTML = state.inspirations.length
-    ? state.inspirations.map(item => `
-      <div class="image-chip">
+    ? state.inspirations.map((item, index) => `
+      <div class="image-chip" data-editor-item-id="${item.id}">
         <img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}">
-        <button type="button" data-action="remove-inspiration" data-id="${item.id}">Remover</button>
+        <div class="image-chip-actions">
+          ${renderMoveButtons("inspiration", item.id, index, state.inspirations.length)}
+          <button class="mini danger" type="button" data-action="remove-inspiration" data-id="${item.id}">Remover</button>
+        </div>
       </div>
     `).join("")
     : `<p class="hint">Nenhuma imagem adicionada ainda.</p>`;
 
-  els.budgetEditor.innerHTML = state.budgetItems.map(item => `
-    <div class="editor-card">
+  els.budgetEditor.innerHTML = state.budgetItems.map((item, index) => `
+    <div class="editor-card" data-editor-item-id="${item.id}">
       <div class="card-grid">
         <label>
           Nome
@@ -314,13 +340,14 @@ function renderEditor() {
         <textarea rows="3" data-section="budgetItems" data-id="${item.id}" data-field="description">${escapeHtml(item.description)}</textarea>
       </label>
       <div class="actions">
+        ${renderMoveButtons("budget-item", item.id, index, state.budgetItems.length)}
         <button class="mini danger" type="button" data-action="remove-budget-item" data-id="${item.id}">Remover</button>
       </div>
     </div>
   `).join("");
 
-  els.includedEditor.innerHTML = state.includedTopics.map(item => `
-    <div class="editor-card">
+  els.includedEditor.innerHTML = state.includedTopics.map((item, index) => `
+    <div class="editor-card" data-editor-item-id="${item.id}">
       <div class="card-grid one">
         <label>
           Tópico
@@ -328,10 +355,47 @@ function renderEditor() {
         </label>
       </div>
       <div class="actions">
+        ${renderMoveButtons("included", item.id, index, state.includedTopics.length)}
         <button class="mini danger" type="button" data-action="remove-included" data-id="${item.id}">Remover</button>
       </div>
     </div>
   `).join("");
+}
+
+
+function renderMoveButtons(kind, id, index, total) {
+  return `
+    <button class="mini icon" type="button" title="Subir item" aria-label="Subir item" data-action="move-${kind}-up" data-id="${id}" ${index === 0 ? "disabled" : ""}>↑</button>
+    <button class="mini icon" type="button" title="Descer item" aria-label="Descer item" data-action="move-${kind}-down" data-id="${id}" ${index === total - 1 ? "disabled" : ""}>↓</button>
+  `;
+}
+
+function moveItem(list, id, direction) {
+  const currentIndex = list.findIndex(item => item.id === id);
+  if (currentIndex === -1) return null;
+
+  const nextIndex = currentIndex + direction;
+  if (nextIndex < 0 || nextIndex >= list.length) return id;
+
+  const [item] = list.splice(currentIndex, 1);
+  list.splice(nextIndex, 0, item);
+  return id;
+}
+
+function scrollToEditorItem(id) {
+  if (!id) return;
+
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`[data-editor-item-id="${cssEscape(id)}"]`);
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+
+    const focusable = target.querySelector("input, textarea, button:not([disabled])");
+    if (focusable && !window.matchMedia("(max-width: 640px)").matches) {
+      focusable.focus({ preventScroll: true });
+    }
+  });
 }
 
 function renderPreview() {
@@ -611,10 +675,11 @@ function ensureMainColor() {
   });
 }
 
-function saveRenderAll() {
+function saveRenderAll(scrollTargetId = null) {
   renderEditor();
   saveState();
   renderPreview();
+  scrollToEditorItem(scrollTargetId);
 }
 
 function loadState() {
@@ -846,6 +911,11 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function cssEscape(value) {
+  if (window.CSS && typeof CSS.escape === "function") return CSS.escape(value);
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "\$&");
 }
 
 function attr(value) {
