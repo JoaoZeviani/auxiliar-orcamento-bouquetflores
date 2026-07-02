@@ -43,6 +43,7 @@ function init() {
   renderEditor();
   renderPreview();
   bindEvents();
+  window.addEventListener("resize", updatePreviewScale);
 }
 
 function bindEvents() {
@@ -345,7 +346,23 @@ function renderPreview() {
     renderSignaturePage()
   ];
 
-  els.preview.innerHTML = pages.join("");
+  els.preview.innerHTML = pages.map(page => `<div class="sheet-frame">${page}</div>`).join("");
+  updatePreviewScale();
+}
+
+function updatePreviewScale() {
+  if (!els.preview) return;
+
+  const sheetWidthPx = 794;
+  const sheetHeightPx = 1123;
+  const previewParent = els.preview.parentElement;
+  const availableWidth = previewParent ? previewParent.clientWidth : window.innerWidth;
+  const safeWidth = Math.max(260, availableWidth);
+  const scale = Math.min(1, safeWidth / sheetWidthPx);
+
+  els.preview.style.setProperty("--preview-scale", scale.toFixed(4));
+  els.preview.style.setProperty("--sheet-frame-width", `${Math.floor(sheetWidthPx * scale)}px`);
+  els.preview.style.setProperty("--sheet-frame-height", `${Math.floor(sheetHeightPx * scale)}px`);
 }
 
 function renderCoverPage() {
