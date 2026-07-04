@@ -583,7 +583,7 @@ function renderBudgetSummary(total) {
       ${state.payment.terms ? `<p>${escapeHtml(state.payment.terms)}</p>` : ""}
     </div>
 
-    <p class="budget-note">Observação: este orçamento é uma estimativa e os valores podem sofrer alterações.</p>
+    <p class="budget-note">Este orçamento é uma estimativa e os valores podem sofrer alterações.</p>
   `;
 }
 
@@ -646,7 +646,7 @@ function renderIncludedPages() {
       <article class="sheet included-page">
         ${renderSmallPageLogo()}
         <div class="sheet-content">
-          <h2 class="page-title">O que está incluso no orçamento</h2>
+          <h2 class="page-title">O que está incluso</h2>
           <div class="empty-state empty-state-blank"></div>
         </div>
       </article>
@@ -657,7 +657,7 @@ function renderIncludedPages() {
     <article class="sheet included-page">
       ${renderSmallPageLogo()}
       <div class="sheet-content">
-        <h2 class="page-title">O que está incluso no orçamento</h2>
+        <h2 class="page-title">O que está incluso</h2>
         <div class="included-list">
           ${items.map(item => `
             <div class="included-item">

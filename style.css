@@ -527,6 +527,10 @@ textarea:focus {
   padding-right: 57mm;
 }
 
+.included-page .page-title {
+  white-space: nowrap;
+}
+
 .cover-page .sheet-content {
   justify-content: flex-start;
   gap: 18mm;
@@ -820,7 +824,7 @@ textarea:focus {
   margin: 4.5mm 0 0;
   padding: 4.5mm 5.2mm;
   border-radius: 4mm;
-  background: var(--pdf-surface);
+  background: var(--pdf-primary-pale);
   border: 1px solid var(--pdf-border);
   color: #000000;
   font-size: 13.6pt;
