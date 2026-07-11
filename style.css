@@ -431,15 +431,19 @@ textarea:focus {
 .sheet-frame {
   position: relative;
   width: 210mm;
+  height: 297mm;
   min-height: 297mm;
   max-width: 100%;
+  overflow: hidden;
 }
 
 .sheet {
   position: relative;
   overflow: hidden;
   width: 210mm;
+  height: 297mm;
   min-height: 297mm;
+  max-height: 297mm;
   padding: 20mm;
   color: var(--pdf-ink);
   background: var(--pdf-paper);
@@ -500,10 +504,10 @@ textarea:focus {
 
 .pdf-logo {
   display: block;
-  width: 118mm;
-  max-width: 118mm;
+  width: 108mm;
+  max-width: 108mm;
   height: auto;
-  max-height: 58mm;
+  max-height: 51mm;
   object-fit: contain;
 }
 
@@ -535,19 +539,26 @@ textarea:focus {
 
 .cover-page .sheet-content {
   justify-content: flex-start;
-  gap: 13mm;
+  gap: 7mm;
+  height: calc(297mm - 40mm);
+  min-height: 0;
+  max-height: calc(297mm - 40mm);
+  overflow: hidden;
 }
 
 .cover-top {
   display: flex;
   justify-content: center;
-  margin-top: 5mm;
+  margin-top: 1mm;
+  margin-bottom: 0;
 }
 
 .cover-main {
   max-width: 150mm;
   margin: 0 auto;
   text-align: center;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cover-main h1 {
