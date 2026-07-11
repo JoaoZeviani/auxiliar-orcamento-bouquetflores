@@ -13,7 +13,8 @@ const defaultState = {
   payment: {
     terms: ""
   },
-  includedTopics: []
+  includedTopics: [],
+  excludedTopics: []
 };
 
 let state = loadState();
@@ -26,14 +27,17 @@ const els = {
   inspirationsEditor: document.getElementById("inspirationsEditor"),
   budgetEditor: document.getElementById("budgetEditor"),
   includedEditor: document.getElementById("includedEditor"),
+  excludedEditor: document.getElementById("excludedEditor"),
   inspirationInput: document.getElementById("inspirationInput"),
   btnPrint: document.getElementById("btnPrint"),
+  btnDownloadPdf: document.getElementById("btnDownloadPdf"),
   btnFakeData: document.getElementById("btnFakeData"),
   btnReset: document.getElementById("btnReset"),
   btnAddCoverField: document.getElementById("btnAddCoverField"),
   btnAddColor: document.getElementById("btnAddColor"),
   btnAddBudgetItem: document.getElementById("btnAddBudgetItem"),
-  btnAddIncluded: document.getElementById("btnAddIncluded")
+  btnAddIncluded: document.getElementById("btnAddIncluded"),
+  btnAddExcluded: document.getElementById("btnAddExcluded")
 };
 
 init();
@@ -58,6 +62,8 @@ function bindEvents() {
     await waitForFonts();
     window.print();
   });
+
+  els.btnDownloadPdf.addEventListener("click", downloadPdf);
 
   els.btnFakeData.addEventListener("click", () => {
     const ok = confirm("Preencher o programa com dados fictícios para teste? Isso substituirá os dados atuais neste navegador.");
@@ -105,6 +111,12 @@ function bindEvents() {
     state.includedTopics.push(item);
     saveRenderAll(item.id);
   });
+
+  els.btnAddExcluded.addEventListener("click", () => {
+    const item = { id: cryptoId(), text: "" };
+    state.excludedTopics.push(item);
+    saveRenderAll(item.id);
+  });
 }
 
 function handleInput(event) {
@@ -140,6 +152,11 @@ function handleInput(event) {
 
   if (section === "includedTopics") {
     const item = state.includedTopics.find(x => x.id === id);
+    if (item) item[field] = el.value;
+  }
+
+  if (section === "excludedTopics") {
+    const item = state.excludedTopics.find(x => x.id === id);
     if (item) item[field] = el.value;
   }
 
@@ -190,6 +207,10 @@ function handleClick(event) {
     state.includedTopics = state.includedTopics.filter(x => x.id !== id);
   }
 
+  if (action === "remove-excluded") {
+    state.excludedTopics = state.excludedTopics.filter(x => x.id !== id);
+  }
+
   if (action === "move-cover-field-up") scrollTargetId = moveItem(state.coverFields, id, -1);
   if (action === "move-cover-field-down") scrollTargetId = moveItem(state.coverFields, id, 1);
   if (action === "move-color-up") scrollTargetId = moveItem(state.palette, id, -1);
@@ -200,6 +221,8 @@ function handleClick(event) {
   if (action === "move-budget-item-down") scrollTargetId = moveItem(state.budgetItems, id, 1);
   if (action === "move-included-up") scrollTargetId = moveItem(state.includedTopics, id, -1);
   if (action === "move-included-down") scrollTargetId = moveItem(state.includedTopics, id, 1);
+  if (action === "move-excluded-up") scrollTargetId = moveItem(state.excludedTopics, id, -1);
+  if (action === "move-excluded-down") scrollTargetId = moveItem(state.excludedTopics, id, 1);
 
   if (action.startsWith("move-color")) ensureMainColor();
 
@@ -260,6 +283,81 @@ async function waitForFonts() {
   } catch (error) {
     // Se alguma webfont não carregar, o PDF usa Clear Sans/Arial como fallback, não fonte cursiva genérica.
   }
+}
+
+async function downloadPdf() {
+  renderPreview();
+  await waitForFonts();
+
+  try {
+    await loadPdfLibrary();
+  } catch (error) {
+    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet ou use o botão Imprimir.");
+    return;
+  }
+
+  if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
+    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet ou use o botão Imprimir.");
+    return;
+  }
+
+  const originalText = els.btnDownloadPdf.textContent;
+  els.btnDownloadPdf.disabled = true;
+  els.btnDownloadPdf.textContent = "Gerando PDF...";
+  document.body.classList.add("is-downloading-pdf");
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const sheets = Array.from(els.preview.querySelectorAll(".sheet"));
+
+    for (let index = 0; index < sheets.length; index += 1) {
+      const sheet = sheets[index];
+      const canvas = await window.html2canvas(sheet, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: sheet.scrollWidth,
+        windowHeight: sheet.scrollHeight
+      });
+
+      const imageData = canvas.toDataURL("image/jpeg", 0.98);
+      if (index > 0) pdf.addPage("a4", "portrait");
+      pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
+    }
+
+    pdf.save(`${sanitizeFileName(state.cover.title || "orcamento-floral")}.pdf`);
+  } catch (error) {
+    console.error(error);
+    alert("Não foi possível baixar o PDF automaticamente. Use o botão Imprimir e escolha Salvar como PDF.");
+  } finally {
+    document.body.classList.remove("is-downloading-pdf");
+    els.btnDownloadPdf.disabled = false;
+    els.btnDownloadPdf.textContent = originalText;
+  }
+}
+
+
+function loadPdfLibrary() {
+  if (window.html2canvas && window.jspdf && window.jspdf.jsPDF) {
+    return Promise.resolve();
+  }
+
+  if (window.__orcamentoPdfLibraryPromise) {
+    return window.__orcamentoPdfLibraryPromise;
+  }
+
+  window.__orcamentoPdfLibraryPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Falha ao carregar html2pdf"));
+    document.head.appendChild(script);
+  });
+
+  return window.__orcamentoPdfLibraryPromise;
 }
 
 function renderEditor() {
@@ -360,6 +458,21 @@ function renderEditor() {
       </div>
     </div>
   `).join("");
+
+  els.excludedEditor.innerHTML = state.excludedTopics.map((item, index) => `
+    <div class="editor-card" data-editor-item-id="${item.id}">
+      <div class="card-grid one">
+        <label>
+          Tópico
+          <textarea rows="2" data-section="excludedTopics" data-id="${item.id}" data-field="text">${escapeHtml(item.text)}</textarea>
+        </label>
+      </div>
+      <div class="actions">
+        ${renderMoveButtons("excluded", item.id, index, state.excludedTopics.length)}
+        <button class="mini danger" type="button" data-action="remove-excluded" data-id="${item.id}">Remover</button>
+      </div>
+    </div>
+  `).join("");
 }
 
 
@@ -407,6 +520,7 @@ function renderPreview() {
     ...renderInspirationPages(),
     ...renderBudgetPages(),
     ...renderIncludedPages(),
+    ...renderExcludedPages(),
     renderSignaturePage()
   ];
 
@@ -508,7 +622,7 @@ function renderInspirationPages() {
     `];
   }
 
-  return chunk(state.inspirations, 6).map((items, pageIndex) => `
+  return chunk(state.inspirations, 4).map((items, pageIndex) => `
     <article class="sheet inspiration-page">
       ${renderSmallPageLogo()}
       <div class="sheet-content">
@@ -531,7 +645,7 @@ function renderBudgetPages() {
   }
 
   const lastPage = pages[pages.length - 1] || [];
-  const summaryOnSeparatePage = items.length > 0 && getBudgetPageUnits(lastPage) > 5.35;
+  const summaryOnSeparatePage = items.length > 0 && getBudgetPageHeightMm(lastPage) + getBudgetSummaryHeightMm() > getBudgetPageMaxHeightMm();
 
   const budgetPages = pages.map((pageItems, index) => {
     const isLast = index === pages.length - 1;
@@ -592,38 +706,50 @@ function paginateBudgetItems(items) {
 
   const pages = [];
   let currentPage = [];
-  let currentUnits = 0;
-  const maxPageUnits = 7.35;
+  let currentHeight = 0;
+  const maxPageHeight = getBudgetPageMaxHeightMm();
 
   items.forEach(item => {
-    const itemUnits = estimateBudgetItemUnits(item);
-    const shouldStartNewPage = currentPage.length > 0 && currentUnits + itemUnits > maxPageUnits;
+    const itemHeight = estimateBudgetItemHeightMm(item);
+    const shouldStartNewPage = currentPage.length > 0 && currentHeight + itemHeight > maxPageHeight;
 
     if (shouldStartNewPage) {
       pages.push(currentPage);
       currentPage = [];
-      currentUnits = 0;
+      currentHeight = 0;
     }
 
     currentPage.push(item);
-    currentUnits += itemUnits;
+    currentHeight += itemHeight;
   });
 
   if (currentPage.length) pages.push(currentPage);
   return pages;
 }
 
-function getBudgetPageUnits(items) {
-  return items.reduce((sum, item) => sum + estimateBudgetItemUnits(item), 0);
+function getBudgetPageMaxHeightMm() {
+  return 202;
 }
 
-function estimateBudgetItemUnits(item) {
+function getBudgetSummaryHeightMm() {
+  return 77;
+}
+
+function getBudgetPageUnits(items) {
+  return getBudgetPageHeightMm(items);
+}
+
+function getBudgetPageHeightMm(items) {
+  return items.reduce((sum, item) => sum + estimateBudgetItemHeightMm(item), 0);
+}
+
+function estimateBudgetItemHeightMm(item) {
   const nameLength = String(item.name || "").trim().length;
   const descriptionLength = String(item.description || "").trim().length;
-  const nameLines = Math.max(1, Math.ceil(nameLength / 28));
-  const descriptionLines = descriptionLength ? Math.ceil(descriptionLength / 76) : 1;
+  const nameLines = Math.max(1, Math.ceil(nameLength / 27));
+  const descriptionLines = descriptionLength ? Math.max(1, Math.ceil(descriptionLength / 68)) : 1;
 
-  return 1.15 + Math.max(0, nameLines - 1) * 0.34 + Math.max(0, descriptionLines - 1) * 0.52;
+  return 14 + nameLines * 6.8 + descriptionLines * 7.2 + 4.5;
 }
 
 function renderBudgetItem(item) {
@@ -639,25 +765,41 @@ function renderBudgetItem(item) {
 }
 
 function renderIncludedPages() {
-  const topics = state.includedTopics.filter(item => (item.text || "").trim());
+  return renderTopicPages({
+    title: "O que está incluso",
+    className: "included-page",
+    topics: state.includedTopics
+  });
+}
 
-  if (!topics.length) {
+function renderExcludedPages() {
+  return renderTopicPages({
+    title: "O que não está incluso",
+    className: "excluded-page",
+    topics: state.excludedTopics
+  });
+}
+
+function renderTopicPages({ title, className, topics }) {
+  const cleanTopics = topics.filter(item => (item.text || "").trim());
+
+  if (!cleanTopics.length) {
     return [`
-      <article class="sheet included-page">
+      <article class="sheet ${className}">
         ${renderSmallPageLogo()}
         <div class="sheet-content">
-          <h2 class="page-title">O que está incluso</h2>
+          <h2 class="page-title">${title}</h2>
           <div class="empty-state empty-state-blank"></div>
         </div>
       </article>
     `];
   }
 
-  return chunk(topics, 10).map((items, pageIndex) => `
-    <article class="sheet included-page">
+  return paginateTextTopics(cleanTopics).map(items => `
+    <article class="sheet ${className}">
       ${renderSmallPageLogo()}
       <div class="sheet-content">
-        <h2 class="page-title">O que está incluso</h2>
+        <h2 class="page-title">${title}</h2>
         <div class="included-list">
           ${items.map(item => `
             <div class="included-item">
@@ -668,6 +810,36 @@ function renderIncludedPages() {
       </div>
     </article>
   `);
+}
+
+function paginateTextTopics(topics) {
+  const pages = [];
+  let currentPage = [];
+  let currentHeight = 0;
+  const maxPageHeight = 204;
+
+  topics.forEach(item => {
+    const itemHeight = estimateTopicHeightMm(item.text);
+    const shouldStartNewPage = currentPage.length > 0 && currentHeight + itemHeight > maxPageHeight;
+
+    if (shouldStartNewPage) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentHeight = 0;
+    }
+
+    currentPage.push(item);
+    currentHeight += itemHeight;
+  });
+
+  if (currentPage.length) pages.push(currentPage);
+  return pages;
+}
+
+function estimateTopicHeightMm(text) {
+  const length = String(text || "").trim().length;
+  const lines = Math.max(1, Math.ceil(length / 82));
+  return 12 + lines * 7.7 + 4;
 }
 
 function renderSignaturePage() {
@@ -782,7 +954,8 @@ function mergeState(base, incoming) {
     palette: Array.isArray(incoming.palette) ? incoming.palette.slice(0, 10) : base.palette,
     inspirations: Array.isArray(incoming.inspirations) ? incoming.inspirations : base.inspirations,
     budgetItems: Array.isArray(incoming.budgetItems) ? incoming.budgetItems : base.budgetItems,
-    includedTopics: Array.isArray(incoming.includedTopics) ? incoming.includedTopics : base.includedTopics
+    includedTopics: Array.isArray(incoming.includedTopics) ? incoming.includedTopics : base.includedTopics,
+    excludedTopics: Array.isArray(incoming.excludedTopics) ? incoming.excludedTopics : base.excludedTopics
   };
 
   return removeLegacyExampleData(merged);
@@ -895,6 +1068,11 @@ function createFakeState() {
       { id: cryptoId(), text: "Compra, preparo e curadoria das flores e folhagens." },
       { id: cryptoId(), text: "Montagem no local do evento conforme cronograma combinado." },
       { id: cryptoId(), text: "Desmontagem dos arranjos ao final do evento." }
+    ],
+    excludedTopics: [
+      { id: cryptoId(), text: "Locação de mobiliário, toalhas, louças e objetos decorativos não descritos no orçamento." },
+      { id: cryptoId(), text: "Taxas cobradas pelo espaço do evento para acesso, carga, descarga ou permanência da equipe." },
+      { id: cryptoId(), text: "Alterações de projeto solicitadas após a aprovação final da proposta." }
     ]
   };
 }
@@ -948,6 +1126,18 @@ function formatMoney(value) {
     style: "currency",
     currency: "BRL"
   }).format(Number.isFinite(value) ? value : 0);
+}
+
+function sanitizeFileName(value) {
+  const clean = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9-_ ]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .toLowerCase();
+
+  return clean || "orcamento-floral";
 }
 
 function cryptoId() {

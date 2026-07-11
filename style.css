@@ -527,8 +527,10 @@ textarea:focus {
   padding-right: 57mm;
 }
 
-.included-page .page-title {
+.included-page .page-title,
+.excluded-page .page-title {
   white-space: nowrap;
+  font-size: 38pt;
 }
 
 .cover-page .sheet-content {
@@ -684,17 +686,19 @@ textarea:focus {
 }
 
 .inspiration-grid {
-  flex: 1;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 5mm;
+  grid-template-columns: repeat(2, 68mm);
+  grid-auto-rows: 102mm;
+  justify-content: center;
+  align-content: start;
+  gap: 6mm 8mm;
 }
 
 .inspiration-slot {
   position: relative;
   overflow: hidden;
-  min-height: 54mm;
+  width: 68mm;
+  height: 102mm;
   border-radius: 5mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -969,6 +973,27 @@ textarea:focus {
   .cover-fields {
     grid-template-columns: 1fr;
   }
+}
+
+
+.is-downloading-pdf .sheet-frame {
+  width: 210mm !important;
+  height: 297mm !important;
+  min-height: 297mm !important;
+  overflow: visible !important;
+}
+
+.is-downloading-pdf .sheet-frame .sheet {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  transform-origin: initial !important;
+  box-shadow: none !important;
+}
+
+.is-downloading-pdf .pdf-document {
+  align-items: flex-start !important;
 }
 
 @media print {

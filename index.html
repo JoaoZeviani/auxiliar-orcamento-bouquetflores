@@ -29,7 +29,8 @@
     <div class="topbar-actions">
       <button class="secondary" id="btnFakeData" type="button">Preencher com dados fictícios</button>
       <button class="secondary" id="btnReset" type="button">Limpar dados</button>
-      <button class="primary" id="btnPrint" type="button">Gerar PDF / Imprimir</button>
+      <button class="primary" id="btnDownloadPdf" type="button">Baixar PDF</button>
+      <button class="secondary" id="btnPrint" type="button">Imprimir</button>
     </div>
   </header>
 
@@ -64,7 +65,7 @@
 
       <section class="panel">
         <h2>Inspirações</h2>
-        <p class="hint">O PDF coloca exatamente 6 imagens por página.</p>
+        <p class="hint">O PDF coloca até 4 imagens por página, em formato vertical padronizado.</p>
         <label class="file-drop">
           <input type="file" id="inspirationInput" accept="image/*" multiple>
           <span>Adicionar fotos de inspiração</span>
@@ -91,6 +92,14 @@
           <button class="mini" type="button" id="btnAddIncluded">+ Item</button>
         </div>
         <div id="includedEditor" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title-row">
+          <h2>O que não está incluso</h2>
+          <button class="mini" type="button" id="btnAddExcluded">+ Item</button>
+        </div>
+        <div id="excludedEditor" class="stack"></div>
       </section>
 
     </aside>
