@@ -313,12 +313,13 @@ async function downloadPdf() {
   try {
     await loadPdfLibrary();
   } catch (error) {
-    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet e tente novamente.");
+    console.error(error);
+    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo assets/pdf-local.js foi enviado para o GitHub junto com os demais arquivos.");
     return;
   }
 
   if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
-    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet e tente novamente.");
+    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo assets/pdf-local.js foi enviado para o GitHub junto com os demais arquivos.");
     return;
   }
 
@@ -351,7 +352,7 @@ async function downloadPdf() {
     pdf.save(`${sanitizeFileName(state.cover.title || "orcamento-floral")}.pdf`);
   } catch (error) {
     console.error(error);
-    alert("Não foi possível baixar o PDF automaticamente. Verifique a conexão com a internet e tente novamente.");
+    alert("Não foi possível baixar o PDF automaticamente. Verifique se todas as imagens carregaram corretamente e tente novamente.");
   } finally {
     document.body.classList.remove("is-downloading-pdf");
     els.btnDownloadPdf.disabled = false;
@@ -365,22 +366,8 @@ function loadPdfLibrary() {
     return Promise.resolve();
   }
 
-  if (window.__orcamentoPdfLibraryPromise) {
-    return window.__orcamentoPdfLibraryPromise;
-  }
-
-  window.__orcamentoPdfLibraryPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Falha ao carregar html2pdf"));
-    document.head.appendChild(script);
-  });
-
-  return window.__orcamentoPdfLibraryPromise;
+  return Promise.reject(new Error("Gerador de PDF local não encontrado"));
 }
-
 function renderEditor() {
   document.querySelector('[data-section="cover"][data-field="title"]').value = state.cover.title || "";
   document.querySelector('[data-section="cover"][data-field="subtitle"]').value = state.cover.subtitle || "";
