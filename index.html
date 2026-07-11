@@ -28,13 +28,12 @@
 
     <div class="topbar-actions">
       <span id="remoteStatus" class="remote-status">Alterações não salvas</span>
-      <button class="secondary" id="btnLogin" type="button">Entrar</button>
+      <button class="secondary" id="btnLogin" type="button">Entrar no app</button>
       <button class="secondary hidden" id="btnLogout" type="button">Sair</button>
       <button class="primary" id="btnSaveRemote" type="button">Salvar orçamento</button>
       <button class="secondary" id="btnOpenRemote" type="button">Abrir orçamento salvo</button>
       <button class="secondary" id="btnReset" type="button">Limpar dados</button>
       <button class="primary" id="btnDownloadPdf" type="button">Baixar PDF</button>
-      <button class="secondary" id="btnPrint" type="button">Imprimir</button>
     </div>
   </header>
 
@@ -118,20 +117,15 @@
     <form method="dialog" class="modal-card" id="authForm">
       <div class="modal-head">
         <div>
-          <h2>Entrar no Supabase</h2>
-          <p>Use o usuário criado no projeto do Supabase para salvar e abrir orçamentos.</p>
+          <h2>Entrar no app</h2>
+          <p>Digite apenas a senha. O e-mail do app já fica configurado automaticamente.</p>
         </div>
         <button class="modal-close" type="button" data-action="close-auth">×</button>
       </div>
 
       <label>
-        E-mail
-        <input type="email" id="authEmail" autocomplete="email" placeholder="orcamento@bouquetflores.local">
-      </label>
-
-      <label>
         Senha
-        <input type="password" id="authPassword" autocomplete="current-password" placeholder="Senha do Supabase">
+        <input type="password" id="authPassword" autocomplete="current-password" placeholder="Senha do app">
       </label>
 
       <p id="authMessage" class="modal-message" aria-live="polite"></p>

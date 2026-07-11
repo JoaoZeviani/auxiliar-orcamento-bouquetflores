@@ -43,14 +43,12 @@ const els = {
   btnOpenRemote: document.getElementById("btnOpenRemote"),
   authModal: document.getElementById("authModal"),
   authForm: document.getElementById("authForm"),
-  authEmail: document.getElementById("authEmail"),
   authPassword: document.getElementById("authPassword"),
   authMessage: document.getElementById("authMessage"),
   savedBudgetsModal: document.getElementById("savedBudgetsModal"),
   savedBudgetSearch: document.getElementById("savedBudgetSearch"),
   savedBudgetsList: document.getElementById("savedBudgetsList"),
   saveChoiceModal: document.getElementById("saveChoiceModal"),
-  btnPrint: document.getElementById("btnPrint"),
   btnDownloadPdf: document.getElementById("btnDownloadPdf"),
   btnReset: document.getElementById("btnReset"),
   btnAddCoverField: document.getElementById("btnAddCoverField"),
@@ -80,12 +78,6 @@ function bindEvents() {
   document.body.addEventListener("click", handleClick);
 
   els.inspirationInput.addEventListener("change", handleImageUpload);
-
-  els.btnPrint.addEventListener("click", async () => {
-    renderPreview();
-    await waitForFonts();
-    window.print();
-  });
 
   els.btnDownloadPdf.addEventListener("click", downloadPdf);
 
@@ -321,12 +313,12 @@ async function downloadPdf() {
   try {
     await loadPdfLibrary();
   } catch (error) {
-    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet ou use o botão Imprimir.");
+    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet e tente novamente.");
     return;
   }
 
   if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
-    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet ou use o botão Imprimir.");
+    alert("Não foi possível carregar o gerador de PDF. Verifique a conexão com a internet e tente novamente.");
     return;
   }
 
@@ -359,7 +351,7 @@ async function downloadPdf() {
     pdf.save(`${sanitizeFileName(state.cover.title || "orcamento-floral")}.pdf`);
   } catch (error) {
     console.error(error);
-    alert("Não foi possível baixar o PDF automaticamente. Use o botão Imprimir e escolha Salvar como PDF.");
+    alert("Não foi possível baixar o PDF automaticamente. Verifique a conexão com a internet e tente novamente.");
   } finally {
     document.body.classList.remove("is-downloading-pdf");
     els.btnDownloadPdf.disabled = false;
@@ -1107,6 +1099,9 @@ function updateRemoteStatus(message = null, tone = null) {
   }
 
   if (message) {
+    if (message === "Alterações não salvas") {
+      els.remoteStatus.classList.add("is-dirty");
+    }
     els.remoteStatus.textContent = message;
     return;
   }
@@ -1158,6 +1153,10 @@ function getSupabaseBucket() {
   return (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.bucket) || "orcamento-imagens";
 }
 
+function getDefaultSupabaseEmail() {
+  return (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.defaultEmail) || "";
+}
+
 async function refreshAuthUi() {
   if (!els.btnLogin || !els.btnLogout) return;
 
@@ -1187,9 +1186,6 @@ function openAuthModal() {
 
   els.authMessage.textContent = "";
   els.authPassword.value = "";
-  if (!els.authEmail.value) {
-    els.authEmail.value = (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.defaultEmail) || "";
-  }
   els.authModal.showModal();
 }
 
@@ -1199,8 +1195,12 @@ async function handleAuthSubmit(event) {
 
   try {
     const client = getSupabaseClient();
-    const email = els.authEmail.value.trim();
+    const email = getDefaultSupabaseEmail();
     const password = els.authPassword.value;
+
+    if (!email) {
+      throw new Error("E-mail padrão não configurado em supabase-config.js.");
+    }
 
     const { error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -1210,7 +1210,7 @@ async function handleAuthSubmit(event) {
     await refreshAuthUi();
     updateRemoteStatus(remoteMeta.dirty ? "Alterações não salvas" : null);
   } catch (error) {
-    els.authMessage.textContent = `Não foi possível entrar: ${error.message || "verifique e-mail, senha e conexão."}`;
+    els.authMessage.textContent = `Não foi possível entrar: ${error.message || "verifique a senha e a conexão."}`;
     updateRemoteStatus("Erro de conexão", "error");
   }
 }

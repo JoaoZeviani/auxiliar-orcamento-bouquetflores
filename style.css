@@ -1069,28 +1069,24 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   min-height: 2.35rem;
-  padding: .48rem .78rem;
-  border-radius: 999px;
+  padding: 0 .2rem;
   color: var(--ui-muted);
-  background: rgba(248, 233, 224, .72);
-  border: 1px solid var(--ui-border);
-  font-size: .82rem;
+  background: transparent;
+  border: 0;
+  font-size: .86rem;
   white-space: nowrap;
 }
 
 .remote-status.is-dirty {
-  color: var(--ui-primary);
-  background: #f8e9e0;
+  color: #b3261e;
 }
 
 .remote-status.is-saved {
   color: #385336;
-  background: #edf5e8;
 }
 
 .remote-status.is-error {
   color: #9a1d20;
-  background: #fde9e9;
 }
 
 .modal {
@@ -1210,9 +1206,13 @@ textarea:focus {
     justify-content: stretch;
   }
 
-  .topbar-actions > button,
-  .remote-status {
+  .topbar-actions > button {
     flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .remote-status {
+    flex: 1 1 100%;
     justify-content: center;
   }
 
