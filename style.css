@@ -554,7 +554,8 @@ textarea:focus {
 }
 
 .cover-main {
-  max-width: 150mm;
+  width: 100%;
+  max-width: 166mm;
   margin: 0 auto;
   text-align: center;
   min-height: 0;
@@ -572,7 +573,7 @@ textarea:focus {
 
 .cover-subtitle {
   margin: 0 auto 5mm;
-  max-width: 150mm;
+  max-width: 166mm;
   color: #000000;
   font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 39pt;
@@ -588,7 +589,7 @@ textarea:focus {
 
 .cover-intro {
   margin: 0 auto 7mm;
-  max-width: 130mm;
+  max-width: 166mm;
   color: #000000;
   font-size: 16pt;
   line-height: 1.58;
@@ -599,7 +600,8 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2mm;
-  max-width: 135mm;
+  width: 100%;
+  max-width: 166mm;
   margin: 0 auto;
 }
 
