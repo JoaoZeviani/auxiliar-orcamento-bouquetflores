@@ -27,7 +27,11 @@
     </div>
 
     <div class="topbar-actions">
-      <button class="secondary" id="btnFakeData" type="button">Preencher com dados fictícios</button>
+      <span id="remoteStatus" class="remote-status">Alterações não salvas</span>
+      <button class="secondary" id="btnLogin" type="button">Entrar</button>
+      <button class="secondary hidden" id="btnLogout" type="button">Sair</button>
+      <button class="primary" id="btnSaveRemote" type="button">Salvar orçamento</button>
+      <button class="secondary" id="btnOpenRemote" type="button">Abrir orçamento salvo</button>
       <button class="secondary" id="btnReset" type="button">Limpar dados</button>
       <button class="primary" id="btnDownloadPdf" type="button">Baixar PDF</button>
       <button class="secondary" id="btnPrint" type="button">Imprimir</button>
@@ -110,6 +114,78 @@
     </section>
   </main>
 
+  <dialog id="authModal" class="modal no-print">
+    <form method="dialog" class="modal-card" id="authForm">
+      <div class="modal-head">
+        <div>
+          <h2>Entrar no Supabase</h2>
+          <p>Use o usuário criado no projeto do Supabase para salvar e abrir orçamentos.</p>
+        </div>
+        <button class="modal-close" type="button" data-action="close-auth">×</button>
+      </div>
+
+      <label>
+        E-mail
+        <input type="email" id="authEmail" autocomplete="email" placeholder="orcamento@bouquetflores.local">
+      </label>
+
+      <label>
+        Senha
+        <input type="password" id="authPassword" autocomplete="current-password" placeholder="Senha do Supabase">
+      </label>
+
+      <p id="authMessage" class="modal-message" aria-live="polite"></p>
+
+      <div class="modal-actions">
+        <button class="secondary" type="button" data-action="close-auth">Cancelar</button>
+        <button class="primary" type="submit">Entrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="savedBudgetsModal" class="modal no-print">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-head">
+        <div>
+          <h2>Orçamentos salvos</h2>
+          <p>Busque, abra ou exclua um orçamento salvo no Supabase.</p>
+        </div>
+        <button class="modal-close" type="button" data-action="close-saved-budgets">×</button>
+      </div>
+
+      <label>
+        Buscar por nome
+        <input type="search" id="savedBudgetSearch" placeholder="Digite parte do título">
+      </label>
+
+      <div id="savedBudgetsList" class="saved-budget-list">
+        <p class="hint">Nenhum orçamento carregado ainda.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="saveChoiceModal" class="modal no-print">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Salvar alterações</h2>
+          <p>Você está editando um orçamento que já foi salvo.</p>
+        </div>
+        <button class="modal-close" type="button" data-action="cancel-save-choice">×</button>
+      </div>
+
+      <p class="modal-message">Escolha se deseja atualizar o orçamento aberto ou salvar uma cópia como novo orçamento.</p>
+
+      <div class="modal-actions modal-actions-column">
+        <button class="primary" type="button" data-action="save-existing-budget">Atualizar orçamento salvo</button>
+        <button class="secondary" type="button" data-action="save-as-new-budget">Salvar como novo orçamento</button>
+        <button class="secondary" type="button" data-action="cancel-save-choice">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

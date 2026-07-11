@@ -1,5 +1,7 @@
 const STORAGE_KEY = "orcamento-floral-v2";
+const REMOTE_META_KEY = "orcamento-floral-remote-meta-v1";
 const LOGO_SRC = "assets/logo_bouquet_flores.png";
+const SUPABASE_TABLE = "orcamentos";
 
 const defaultState = {
   cover: {
@@ -18,6 +20,11 @@ const defaultState = {
 };
 
 let state = loadState();
+let remoteMeta = loadRemoteMeta();
+let appInitialized = false;
+let suppressRemoteDirty = false;
+let savedBudgetsCache = [];
+let supabaseClient = null;
 
 const els = {
   preview: document.getElementById("pdfPreview"),
@@ -29,9 +36,22 @@ const els = {
   includedEditor: document.getElementById("includedEditor"),
   excludedEditor: document.getElementById("excludedEditor"),
   inspirationInput: document.getElementById("inspirationInput"),
+  remoteStatus: document.getElementById("remoteStatus"),
+  btnLogin: document.getElementById("btnLogin"),
+  btnLogout: document.getElementById("btnLogout"),
+  btnSaveRemote: document.getElementById("btnSaveRemote"),
+  btnOpenRemote: document.getElementById("btnOpenRemote"),
+  authModal: document.getElementById("authModal"),
+  authForm: document.getElementById("authForm"),
+  authEmail: document.getElementById("authEmail"),
+  authPassword: document.getElementById("authPassword"),
+  authMessage: document.getElementById("authMessage"),
+  savedBudgetsModal: document.getElementById("savedBudgetsModal"),
+  savedBudgetSearch: document.getElementById("savedBudgetSearch"),
+  savedBudgetsList: document.getElementById("savedBudgetsList"),
+  saveChoiceModal: document.getElementById("saveChoiceModal"),
   btnPrint: document.getElementById("btnPrint"),
   btnDownloadPdf: document.getElementById("btnDownloadPdf"),
-  btnFakeData: document.getElementById("btnFakeData"),
   btnReset: document.getElementById("btnReset"),
   btnAddCoverField: document.getElementById("btnAddCoverField"),
   btnAddColor: document.getElementById("btnAddColor"),
@@ -47,7 +67,11 @@ function init() {
   renderEditor();
   renderPreview();
   bindEvents();
+  refreshAuthUi();
+  updateRemoteStatus();
+  appInitialized = true;
   window.addEventListener("resize", updatePreviewScale);
+  window.addEventListener("beforeunload", handleBeforeUnload);
 }
 
 function bindEvents() {
@@ -65,22 +89,24 @@ function bindEvents() {
 
   els.btnDownloadPdf.addEventListener("click", downloadPdf);
 
-  els.btnFakeData.addEventListener("click", () => {
-    const ok = confirm("Preencher o programa com dados fictícios para teste? Isso substituirá os dados atuais neste navegador.");
-    if (!ok) return;
-    state = createFakeState();
-    saveState();
-    renderEditor();
-    renderPreview();
-  });
+  els.btnLogin.addEventListener("click", openAuthModal);
+  els.btnLogout.addEventListener("click", logoutSupabase);
+  els.btnSaveRemote.addEventListener("click", handleSaveRemoteClick);
+  els.btnOpenRemote.addEventListener("click", openSavedBudgetsModal);
+  els.authForm.addEventListener("submit", handleAuthSubmit);
+  els.savedBudgetSearch.addEventListener("input", renderSavedBudgetsList);
 
   els.btnReset.addEventListener("click", () => {
+    if (!confirmDiscardUnsaved()) return;
     const ok = confirm("Limpar todos os dados salvos neste navegador?");
     if (!ok) return;
     state = structuredCloneSafe(defaultState);
+    remoteMeta = createEmptyRemoteMeta();
+    saveRemoteMeta();
     saveState();
     renderEditor();
     renderPreview();
+    updateRemoteStatus();
   });
 
   els.btnAddCoverField.addEventListener("click", () => {
@@ -184,6 +210,9 @@ function handleClick(event) {
 
   const action = button.dataset.action;
   const id = button.dataset.id;
+
+  if (handleModalAction(action, id)) return;
+
   let scrollTargetId = null;
 
   if (action === "remove-cover-field") {
@@ -942,6 +971,10 @@ function saveState() {
       setStatus("Não foi possível salvar automaticamente neste navegador.");
     }
   }
+
+  if (appInitialized && !suppressRemoteDirty) {
+    markRemoteDirty();
+  }
 }
 
 function mergeState(base, incoming) {
@@ -1012,96 +1045,558 @@ function removeLegacyExampleData(data) {
   return data;
 }
 
-function createFakeState() {
-  const palette = [
-    { id: cryptoId(), name: "Marsala", hex: "#4d1225", main: true },
-    { id: cryptoId(), name: "Creme", hex: "#F5EBE3", main: false },
-    { id: cryptoId(), name: "Bronze", hex: "#805630", main: false },
-    { id: cryptoId(), name: "Verde oliva", hex: "#6F7A45", main: false }
-  ];
+function handleBeforeUnload(event) {
+  if (!remoteMeta.dirty) return;
+  event.preventDefault();
+  event.returnValue = "";
+}
 
+function createEmptyRemoteMeta() {
   return {
-    cover: {
-      title: "Proposta de Orçamento Floral",
-      intro: "Projeto floral personalizado para compor uma celebração elegante, acolhedora e alinhada à identidade visual do evento."
-    },
-    coverFields: [
-      { id: cryptoId(), label: "Cliente", value: "Mariana e Rafael" },
-      { id: cryptoId(), label: "Evento", value: "Casamento intimista" },
-      { id: cryptoId(), label: "Data do evento", value: "18/10/2026" },
-      { id: cryptoId(), label: "Local", value: "Ribeirão Preto/SP" }
-    ],
-    palette,
-    inspirations: [
-      createFakeInspiration(1, "Mesa floral", "#4d1225", "#F5EBE3"),
-      createFakeInspiration(2, "Arranjo aéreo", "#805630", "#F5EBE3"),
-      createFakeInspiration(3, "Cerimônia", "#6F7A45", "#F5EBE3"),
-      createFakeInspiration(4, "Buquê", "#4d1225", "#805630"),
-      createFakeInspiration(5, "Recepção", "#F5EBE3", "#4d1225"),
-      createFakeInspiration(6, "Detalhes", "#805630", "#4d1225")
-    ],
-    budgetItems: [
-      {
-        id: cryptoId(),
-        name: "Mesa do bolo",
-        description: "Composição floral com arranjos baixos, folhagens e flores naturais na paleta escolhida.",
-        price: "1850,00"
-      },
-      {
-        id: cryptoId(),
-        name: "Cerimônia",
-        description: "Arranjos laterais para corredor, flores no altar e acabamento com folhagens.",
-        price: "2400,00"
-      },
-      {
-        id: cryptoId(),
-        name: "Mesas dos convidados",
-        description: "Centros de mesa florais com vasos baixos e composição delicada para recepção.",
-        price: "3200,00"
-      }
-    ],
-    payment: {
-      terms: "50% na aprovação da proposta e 50% até 7 dias antes do evento."
-    },
-    includedTopics: [
-      { id: cryptoId(), text: "Criação do conceito floral conforme paleta aprovada." },
-      { id: cryptoId(), text: "Compra, preparo e curadoria das flores e folhagens." },
-      { id: cryptoId(), text: "Montagem no local do evento conforme cronograma combinado." },
-      { id: cryptoId(), text: "Desmontagem dos arranjos ao final do evento." }
-    ],
-    excludedTopics: [
-      { id: cryptoId(), text: "Locação de mobiliário, toalhas, louças e objetos decorativos não descritos no orçamento." },
-      { id: cryptoId(), text: "Taxas cobradas pelo espaço do evento para acesso, carga, descarga ou permanência da equipe." },
-      { id: cryptoId(), text: "Alterações de projeto solicitadas após a aprovação final da proposta." }
-    ]
+    id: null,
+    title: "",
+    savedAt: null,
+    dirty: true
   };
 }
 
-function createFakeInspiration(index, name, primary, accent) {
-  const safeName = escapeHtml(name);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620">
-      <defs>
-        <linearGradient id="bg${index}" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="${accent}"/>
-          <stop offset="1" stop-color="#fffaf6"/>
-        </linearGradient>
-      </defs>
-      <rect width="900" height="620" fill="url(#bg${index})"/>
-      <circle cx="${250 + index * 18}" cy="250" r="120" fill="${primary}" opacity="0.92"/>
-      <circle cx="${350 + index * 10}" cy="230" r="92" fill="${primary}" opacity="0.74"/>
-      <circle cx="${420 + index * 6}" cy="330" r="110" fill="${primary}" opacity="0.58"/>
-      <path d="M160 480 C320 340, 520 560, 740 360" fill="none" stroke="#805630" stroke-width="24" stroke-linecap="round" opacity="0.75"/>
-      <text x="70" y="560" font-family="Arial, sans-serif" font-size="42" fill="#2c2020" opacity="0.75">${safeName}</text>
-    </svg>
-  `.trim();
-
-  return {
-    id: cryptoId(),
-    name,
-    dataUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  };
+function loadRemoteMeta() {
+  try {
+    const raw = localStorage.getItem(REMOTE_META_KEY);
+    if (!raw) return createEmptyRemoteMeta();
+    return { ...createEmptyRemoteMeta(), ...JSON.parse(raw) };
+  } catch (error) {
+    return createEmptyRemoteMeta();
+  }
 }
+
+function saveRemoteMeta() {
+  try {
+    localStorage.setItem(REMOTE_META_KEY, JSON.stringify(remoteMeta));
+  } catch (error) {
+    // O app continua funcionando mesmo se o navegador negar o localStorage.
+  }
+}
+
+function markRemoteDirty() {
+  remoteMeta.dirty = true;
+  saveRemoteMeta();
+  updateRemoteStatus();
+}
+
+function markRemoteSaved({ id, title, savedAt }) {
+  remoteMeta = {
+    id,
+    title,
+    savedAt,
+    dirty: false
+  };
+  saveRemoteMeta();
+  updateRemoteStatus();
+}
+
+function updateRemoteStatus(message = null, tone = null) {
+  if (!els.remoteStatus) return;
+
+  els.remoteStatus.classList.remove("is-dirty", "is-saved", "is-error");
+
+  if (tone === "error") {
+    els.remoteStatus.classList.add("is-error");
+    els.remoteStatus.textContent = message || "Erro de conexão";
+    return;
+  }
+
+  if (message) {
+    els.remoteStatus.textContent = message;
+    return;
+  }
+
+  if (remoteMeta.dirty) {
+    els.remoteStatus.classList.add("is-dirty");
+    els.remoteStatus.textContent = "Alterações não salvas";
+    return;
+  }
+
+  els.remoteStatus.classList.add("is-saved");
+  els.remoteStatus.textContent = remoteMeta.savedAt
+    ? `Salvo às ${formatTime(remoteMeta.savedAt)}`
+    : "Salvo";
+}
+
+function confirmDiscardUnsaved() {
+  if (!remoteMeta.dirty) return true;
+  return confirm("Existem alterações não salvas. Deseja continuar mesmo assim?");
+}
+
+function isSupabaseConfigured() {
+  const config = window.ORCAMENTO_SUPABASE || {};
+  return Boolean(
+    config.url
+    && config.anonKey
+    && !String(config.url).includes("COLE_AQUI")
+    && !String(config.anonKey).includes("COLE_AQUI")
+  );
+}
+
+function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+
+  if (!window.supabase || !window.supabase.createClient) {
+    throw new Error("Biblioteca do Supabase não carregada.");
+  }
+
+  if (!isSupabaseConfigured()) {
+    throw new Error("Supabase ainda não foi configurado em supabase-config.js.");
+  }
+
+  const config = window.ORCAMENTO_SUPABASE;
+  supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+  return supabaseClient;
+}
+
+function getSupabaseBucket() {
+  return (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.bucket) || "orcamento-imagens";
+}
+
+async function refreshAuthUi() {
+  if (!els.btnLogin || !els.btnLogout) return;
+
+  if (!isSupabaseConfigured()) {
+    els.btnLogin.textContent = "Configurar Supabase";
+    els.btnLogout.classList.add("hidden");
+    return;
+  }
+
+  try {
+    const client = getSupabaseClient();
+    const { data } = await client.auth.getSession();
+    const logged = Boolean(data.session);
+    els.btnLogin.classList.toggle("hidden", logged);
+    els.btnLogout.classList.toggle("hidden", !logged);
+  } catch (error) {
+    els.btnLogin.classList.remove("hidden");
+    els.btnLogout.classList.add("hidden");
+  }
+}
+
+function openAuthModal() {
+  if (!isSupabaseConfigured()) {
+    alert("Configure o arquivo supabase-config.js com a URL e a anon key do projeto antes de entrar.");
+    return;
+  }
+
+  els.authMessage.textContent = "";
+  els.authPassword.value = "";
+  if (!els.authEmail.value) {
+    els.authEmail.value = (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.defaultEmail) || "";
+  }
+  els.authModal.showModal();
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  els.authMessage.textContent = "Entrando...";
+
+  try {
+    const client = getSupabaseClient();
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
+    els.authModal.close();
+    els.authPassword.value = "";
+    await refreshAuthUi();
+    updateRemoteStatus(remoteMeta.dirty ? "Alterações não salvas" : null);
+  } catch (error) {
+    els.authMessage.textContent = `Não foi possível entrar: ${error.message || "verifique e-mail, senha e conexão."}`;
+    updateRemoteStatus("Erro de conexão", "error");
+  }
+}
+
+async function logoutSupabase() {
+  try {
+    const client = getSupabaseClient();
+    await client.auth.signOut();
+  } catch (error) {
+    // Ignora falha de logout local.
+  }
+  await refreshAuthUi();
+}
+
+async function ensureAuthenticated() {
+  if (!isSupabaseConfigured()) {
+    alert("Configure o arquivo supabase-config.js com a URL e a anon key do Supabase antes de salvar ou abrir orçamentos.");
+    throw new Error("Supabase não configurado.");
+  }
+
+  const client = getSupabaseClient();
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) {
+    openAuthModal();
+    throw new Error("Faça login no Supabase e tente novamente.");
+  }
+
+  return { client, user: data.user };
+}
+
+async function handleSaveRemoteClick() {
+  const title = getCurrentBudgetTitle();
+  if (!title) {
+    alert("Preencha o título do documento antes de salvar o orçamento.");
+    return;
+  }
+
+  if (remoteMeta.id && remoteMeta.dirty) {
+    openSaveChoiceModal();
+    return;
+  }
+
+  await saveRemoteBudget({ asNew: false });
+}
+
+function openSaveChoiceModal() {
+  els.saveChoiceModal.showModal();
+}
+
+function handleModalAction(action, id) {
+  if (action === "close-auth") {
+    els.authModal.close();
+    return true;
+  }
+
+  if (action === "close-saved-budgets") {
+    els.savedBudgetsModal.close();
+    return true;
+  }
+
+  if (action === "cancel-save-choice") {
+    els.saveChoiceModal.close();
+    return true;
+  }
+
+  if (action === "save-existing-budget") {
+    els.saveChoiceModal.close();
+    saveRemoteBudget({ asNew: false });
+    return true;
+  }
+
+  if (action === "save-as-new-budget") {
+    els.saveChoiceModal.close();
+    saveRemoteBudget({ asNew: true });
+    return true;
+  }
+
+  if (action === "open-saved-budget") {
+    openSavedBudget(id);
+    return true;
+  }
+
+  if (action === "delete-saved-budget") {
+    deleteSavedBudget(id);
+    return true;
+  }
+
+  return false;
+}
+
+async function saveRemoteBudget({ asNew }) {
+  const title = getCurrentBudgetTitle();
+  if (!title) {
+    alert("Preencha o título do documento antes de salvar o orçamento.");
+    return;
+  }
+
+  const previousText = els.btnSaveRemote.textContent;
+  els.btnSaveRemote.disabled = true;
+  els.btnSaveRemote.textContent = "Salvando...";
+  updateRemoteStatus("Salvando...");
+
+  try {
+    const { client, user } = await ensureAuthenticated();
+    const budgetId = asNew || !remoteMeta.id ? cryptoUuid() : remoteMeta.id;
+    const preparedState = await prepareStateForRemoteSave(client, user, budgetId);
+
+    const payload = {
+      id: budgetId,
+      user_id: user.id,
+      titulo: title,
+      dados: preparedState,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await client
+      .from(SUPABASE_TABLE)
+      .upsert(payload, { onConflict: "id" })
+      .select("id,titulo,updated_at")
+      .single();
+
+    if (error) throw error;
+
+    suppressRemoteDirty = true;
+    state = preparedState;
+    saveState();
+    suppressRemoteDirty = false;
+    renderEditor();
+    renderPreview();
+    markRemoteSaved({ id: data.id, title: data.titulo, savedAt: data.updated_at });
+    await refreshSavedBudgetsList(false);
+  } catch (error) {
+    console.error(error);
+    alert(`Não foi possível salvar. Verifique a conexão e a configuração do Supabase.\n\nDetalhe: ${error.message || error}`);
+    updateRemoteStatus("Erro ao salvar", "error");
+  } finally {
+    suppressRemoteDirty = false;
+    els.btnSaveRemote.disabled = false;
+    els.btnSaveRemote.textContent = previousText;
+  }
+}
+
+async function openSavedBudgetsModal() {
+  try {
+    await ensureAuthenticated();
+  } catch (error) {
+    return;
+  }
+
+  els.savedBudgetSearch.value = "";
+  els.savedBudgetsList.innerHTML = `<p class="hint">Carregando orçamentos...</p>`;
+  els.savedBudgetsModal.showModal();
+  await refreshSavedBudgetsList(true);
+}
+
+async function refreshSavedBudgetsList(showErrors) {
+  try {
+    const { client } = await ensureAuthenticated();
+    const { data, error } = await client
+      .from(SUPABASE_TABLE)
+      .select("id,titulo,created_at,updated_at")
+      .order("updated_at", { ascending: false });
+
+    if (error) throw error;
+
+    savedBudgetsCache = Array.isArray(data) ? data : [];
+    renderSavedBudgetsList();
+  } catch (error) {
+    console.error(error);
+    if (showErrors) {
+      els.savedBudgetsList.innerHTML = `<p class="hint">Não foi possível carregar. Verifique a conexão.</p>`;
+      updateRemoteStatus("Erro ao carregar", "error");
+    }
+  }
+}
+
+function renderSavedBudgetsList() {
+  if (!els.savedBudgetsList) return;
+
+  const search = normalizeSearch(els.savedBudgetSearch.value);
+  const filtered = savedBudgetsCache.filter(item => normalizeSearch(item.titulo).includes(search));
+
+  if (!filtered.length) {
+    els.savedBudgetsList.innerHTML = `<p class="hint">Nenhum orçamento salvo encontrado.</p>`;
+    return;
+  }
+
+  els.savedBudgetsList.innerHTML = filtered.map(item => `
+    <div class="saved-budget-card">
+      <div>
+        <strong>${escapeHtml(item.titulo || "Sem título")}</strong>
+        <span>Atualizado em ${formatDateTime(item.updated_at)}</span>
+      </div>
+      <div class="saved-budget-actions">
+        <button class="mini" type="button" data-action="open-saved-budget" data-id="${attr(item.id)}">Abrir</button>
+        <button class="mini danger" type="button" data-action="delete-saved-budget" data-id="${attr(item.id)}">Excluir</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function openSavedBudget(id) {
+  if (!confirmDiscardUnsaved()) return;
+
+  try {
+    const { client } = await ensureAuthenticated();
+    updateRemoteStatus("Abrindo...");
+
+    const { data, error } = await client
+      .from(SUPABASE_TABLE)
+      .select("id,titulo,dados,updated_at")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+
+    suppressRemoteDirty = true;
+    state = mergeState(structuredCloneSafe(defaultState), data.dados || {});
+    saveState();
+    suppressRemoteDirty = false;
+    renderEditor();
+    renderPreview();
+    markRemoteSaved({ id: data.id, title: data.titulo, savedAt: data.updated_at });
+    els.savedBudgetsModal.close();
+  } catch (error) {
+    console.error(error);
+    alert(`Não foi possível abrir o orçamento. Verifique a conexão.\n\nDetalhe: ${error.message || error}`);
+    updateRemoteStatus("Erro ao abrir", "error");
+  } finally {
+    suppressRemoteDirty = false;
+  }
+}
+
+async function deleteSavedBudget(id) {
+  const budget = savedBudgetsCache.find(item => item.id === id);
+  const label = budget && budget.titulo ? `"${budget.titulo}"` : "este orçamento";
+  const ok = confirm(`Excluir ${label}? Esta ação não pode ser desfeita.`);
+  if (!ok) return;
+
+  try {
+    const { client, user } = await ensureAuthenticated();
+    updateRemoteStatus("Excluindo...");
+
+    await removeBudgetStorageFiles(client, user, id);
+
+    const { error } = await client
+      .from(SUPABASE_TABLE)
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    savedBudgetsCache = savedBudgetsCache.filter(item => item.id !== id);
+    renderSavedBudgetsList();
+
+    if (remoteMeta.id === id) {
+      remoteMeta = createEmptyRemoteMeta();
+      saveRemoteMeta();
+      updateRemoteStatus();
+    } else {
+      updateRemoteStatus(remoteMeta.dirty ? "Alterações não salvas" : null);
+    }
+  } catch (error) {
+    console.error(error);
+    alert(`Não foi possível excluir. Verifique a conexão.\n\nDetalhe: ${error.message || error}`);
+    updateRemoteStatus("Erro ao excluir", "error");
+  }
+}
+
+async function prepareStateForRemoteSave(client, user, budgetId) {
+  const prepared = structuredCloneSafe(state);
+  prepared.inspirations = [];
+
+  for (const item of state.inspirations) {
+    const nextItem = { ...item };
+
+    if (isDataUrl(nextItem.dataUrl)) {
+      const blob = dataUrlToBlob(nextItem.dataUrl);
+      const extension = mimeToExtension(blob.type);
+      const path = `${user.id}/${budgetId}/${nextItem.id || cryptoId()}.${extension}`;
+
+      const { error: uploadError } = await client.storage
+        .from(getSupabaseBucket())
+        .upload(path, blob, {
+          contentType: blob.type || "image/jpeg",
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = client.storage
+        .from(getSupabaseBucket())
+        .getPublicUrl(path);
+
+      nextItem.storagePath = path;
+      nextItem.dataUrl = publicData.publicUrl;
+      nextItem.publicUrl = publicData.publicUrl;
+    }
+
+    prepared.inspirations.push(nextItem);
+  }
+
+  return prepared;
+}
+
+async function removeBudgetStorageFiles(client, user, budgetId) {
+  try {
+    const folder = `${user.id}/${budgetId}`;
+    const { data, error } = await client.storage
+      .from(getSupabaseBucket())
+      .list(folder, { limit: 1000 });
+
+    if (error || !Array.isArray(data) || !data.length) return;
+
+    const paths = data.map(item => `${folder}/${item.name}`);
+    await client.storage.from(getSupabaseBucket()).remove(paths);
+  } catch (error) {
+    // A exclusão do registro principal não deve falhar se a limpeza do Storage não conseguir listar os arquivos.
+  }
+}
+
+function getCurrentBudgetTitle() {
+  return String(state.cover && state.cover.title ? state.cover.title : "").trim();
+}
+
+function isDataUrl(value) {
+  return /^data:image\//i.test(String(value || ""));
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [meta, base64] = String(dataUrl).split(",");
+  const mimeMatch = meta.match(/data:(.*?);base64/i);
+  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  const binary = atob(base64 || "");
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
+}
+
+function mimeToExtension(mime) {
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/gif") return "gif";
+  return "jpg";
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateTime(value) {
+  if (!value) return "data indisponível";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "data indisponível";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function cryptoUuid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+    (Number(c) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(c) / 4).toString(16)
+  );
+}
+
 
 function setStatus(message) {
   els.saveStatus.textContent = message;
