@@ -1002,6 +1002,51 @@ textarea:focus {
   }
 }
 
+/* Rolagens independentes no desktop: menu à esquerda e PDF à direita */
+@media (min-width: 1121px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  .topbar {
+    flex: 0 0 auto;
+  }
+
+  .app-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+    align-items: stretch;
+  }
+
+  .editor,
+  .preview-wrap {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .editor {
+    padding-right: .35rem;
+  }
+
+  .preview-wrap {
+    padding-right: .45rem;
+  }
+}
+
 
 .is-downloading-pdf .sheet-frame {
   width: 210mm !important;
