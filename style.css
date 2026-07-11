@@ -561,11 +561,18 @@ textarea:focus {
 
 .cover-subtitle {
   margin: 0 auto 5mm;
-  max-width: 130mm;
+  max-width: 150mm;
   color: #000000;
-  font-family: "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
-  font-size: 20pt;
-  line-height: 1.28;
+  font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
+  font-size: 39pt;
+  line-height: 1.08;
+  letter-spacing: -.02em;
+}
+
+.cover-main h1 + .cover-subtitle {
+  margin-top: 5mm;
+  padding-top: 5mm;
+  border-top: .35mm solid rgba(0, 0, 0, .45);
 }
 
 .cover-intro {
