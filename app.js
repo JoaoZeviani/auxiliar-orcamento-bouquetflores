@@ -6,6 +6,7 @@ const SUPABASE_TABLE = "orcamentos";
 const defaultState = {
   cover: {
     title: "",
+    subtitle: "",
     intro: ""
   },
   coverFields: [],
@@ -382,6 +383,7 @@ function loadPdfLibrary() {
 
 function renderEditor() {
   document.querySelector('[data-section="cover"][data-field="title"]').value = state.cover.title || "";
+  document.querySelector('[data-section="cover"][data-field="subtitle"]').value = state.cover.subtitle || "";
   document.querySelector('[data-section="cover"][data-field="intro"]').value = state.cover.intro || "";
   document.querySelector('[data-section="payment"][data-field="terms"]').value = state.payment.terms || "";
 
@@ -586,6 +588,7 @@ function renderCoverPage() {
 
         <div class="cover-main">
           ${state.cover.title ? `<h1>${escapeHtml(state.cover.title)}</h1>` : ""}
+          ${state.cover.subtitle ? `<p class="cover-subtitle">${escapeHtml(state.cover.subtitle)}</p>` : ""}
           ${state.cover.intro ? `<p class="cover-intro">${escapeHtml(state.cover.intro)}</p>` : ""}
           ${fieldsHtml ? `<div class="cover-fields">${fieldsHtml}</div>` : ""}
         </div>

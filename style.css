@@ -535,7 +535,7 @@ textarea:focus {
 
 .cover-page .sheet-content {
   justify-content: flex-start;
-  gap: 18mm;
+  gap: 13mm;
 }
 
 .cover-top {
@@ -551,7 +551,7 @@ textarea:focus {
 }
 
 .cover-main h1 {
-  margin: 0 0 5mm;
+  margin: 0 0 3mm;
   color: #000000;
   font-family: "Magnolia Script", "Magnolia Script Local", "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
   font-size: 39pt;
@@ -559,8 +559,17 @@ textarea:focus {
   letter-spacing: -.02em;
 }
 
+.cover-subtitle {
+  margin: 0 auto 5mm;
+  max-width: 130mm;
+  color: #000000;
+  font-family: "Clear Sans", "Clear Sans Local", Arial, Helvetica, sans-serif;
+  font-size: 20pt;
+  line-height: 1.28;
+}
+
 .cover-intro {
-  margin: 0 auto 11mm;
+  margin: 0 auto 7mm;
   max-width: 130mm;
   color: #000000;
   font-size: 16pt;
@@ -571,14 +580,14 @@ textarea:focus {
 .cover-fields {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 3mm;
+  gap: 2mm;
   max-width: 135mm;
   margin: 0 auto;
 }
 
 .cover-field {
-  min-height: 20mm;
-  padding: 6mm;
+  min-height: 13mm;
+  padding: 3.2mm 4mm;
   border-radius: 4mm;
   background: var(--pdf-surface);
   border: 1px solid var(--pdf-border);
@@ -591,18 +600,18 @@ textarea:focus {
 
 .cover-field b {
   display: block;
-  margin-bottom: 1.5mm;
+  margin-bottom: .8mm;
   color: #000000;
-  font-size: 15pt;
-  letter-spacing: .08em;
+  font-size: 13pt;
+  letter-spacing: .06em;
   text-transform: uppercase;
 }
 
 .cover-field span {
   display: block;
   color: var(--pdf-ink);
-  font-size: 16pt;
-  line-height: 1.4;
+  font-size: 15pt;
+  line-height: 1.24;
   white-space: pre-line;
 }
 
