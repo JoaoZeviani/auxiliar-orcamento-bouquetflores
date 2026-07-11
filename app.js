@@ -349,7 +349,7 @@ async function downloadPdf() {
       pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
     }
 
-    pdf.save(`${sanitizeFileName(state.cover.title || "orcamento-floral")}.pdf`);
+    pdf.save(`${buildPdfFileName()}.pdf`);
   } catch (error) {
     console.error(error);
     alert("Não foi possível baixar o PDF automaticamente. Verifique se todas as imagens carregaram corretamente e tente novamente.");
@@ -1621,6 +1621,14 @@ function formatMoney(value) {
     style: "currency",
     currency: "BRL"
   }).format(Number.isFinite(value) ? value : 0);
+}
+
+function buildPdfFileName() {
+  const title = String(state.cover.title || "").trim();
+  const subtitle = String(state.cover.subtitle || "").trim();
+  const parts = [title, subtitle].filter(Boolean);
+
+  return sanitizeFileName(parts.join(" - ") || "orcamento-floral");
 }
 
 function sanitizeFileName(value) {
