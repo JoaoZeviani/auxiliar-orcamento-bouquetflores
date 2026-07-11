@@ -1101,12 +1101,19 @@ textarea:focus {
 }
 
 .modal {
-  width: min(92vw, 520px);
+  width: min(calc(100vw - 24px), 520px);
+  max-width: calc(100vw - 24px);
   max-height: min(88vh, 760px);
   padding: 0;
   color: var(--ui-ink);
   background: transparent;
   border: 0;
+  overflow: visible;
+}
+
+#savedBudgetsModal {
+  width: min(calc(100vw - 24px), 760px);
+  max-width: calc(100vw - 24px);
 }
 
 .modal::backdrop {
@@ -1115,15 +1122,19 @@ textarea:focus {
 }
 
 .modal-card {
+  width: 100%;
+  max-width: 100%;
   padding: 1.1rem;
   background: var(--ui-panel);
   border: 1px solid var(--ui-border);
   border-radius: 24px;
   box-shadow: 0 24px 80px rgba(44, 32, 32, .24);
+  overflow: hidden;
 }
 
 .modal-card-wide {
-  width: min(92vw, 720px);
+  width: 100%;
+  max-width: 100%;
 }
 
 .modal-head {
@@ -1175,23 +1186,34 @@ textarea:focus {
   flex-direction: column;
   gap: .65rem;
   max-height: 52vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: .2rem;
 }
 
 .saved-budget-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: .75rem;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: .85rem;
   background: #fffaf6;
   border: 1px solid var(--ui-border);
   border-radius: 18px;
+  overflow: hidden;
+}
+
+.saved-budget-card > div:first-child {
+  min-width: 0;
 }
 
 .saved-budget-card strong {
   display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--ui-primary);
   font-size: .98rem;
   font-weight: 400;
@@ -1199,7 +1221,9 @@ textarea:focus {
 
 .saved-budget-card span {
   display: block;
+  max-width: 100%;
   margin-top: .16rem;
+  overflow-wrap: anywhere;
   color: var(--ui-muted);
   font-size: .8rem;
 }
@@ -1209,6 +1233,7 @@ textarea:focus {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: .4rem;
+  min-width: 0;
 }
 
 @media (max-width: 760px) {
@@ -1231,11 +1256,35 @@ textarea:focus {
     flex-direction: column;
   }
 
+  #savedBudgetsModal {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+
+  .modal-card {
+    padding: .9rem;
+    border-radius: 20px;
+  }
+
+  .modal-head {
+    gap: .65rem;
+  }
+
+  .modal-head h2 {
+    font-size: 1rem;
+  }
+
   .saved-budget-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .6rem;
   }
 
   .saved-budget-actions {
     justify-content: flex-start;
+  }
+
+  .saved-budget-actions .mini {
+    flex: 1 1 auto;
+    text-align: center;
   }
 }
