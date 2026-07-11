@@ -1065,6 +1065,17 @@ textarea:focus {
   display: none !important;
 }
 
+
+.auth-locked .app-shell,
+.auth-locked .topbar-actions {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.auth-locked .topbar {
+  justify-content: center;
+}
+
 .remote-status {
   display: inline-flex;
   align-items: center;

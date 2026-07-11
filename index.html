@@ -16,7 +16,7 @@
   <link href="https://fonts.cdnfonts.com/css/gistesy" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="auth-locked">
   <header class="topbar no-print">
     <div class="brand">
       <img class="brand-icon" src="assets/app-icon.png" alt="Ícone do Auxiliar de Orçamento Floral">
@@ -28,7 +28,6 @@
 
     <div class="topbar-actions">
       <span id="remoteStatus" class="remote-status">Alterações não salvas</span>
-      <button class="secondary" id="btnLogin" type="button">Entrar no app</button>
       <button class="secondary hidden" id="btnLogout" type="button">Sair</button>
       <button class="primary" id="btnSaveRemote" type="button">Salvar orçamento</button>
       <button class="secondary" id="btnOpenRemote" type="button">Abrir orçamento salvo</button>
@@ -114,13 +113,12 @@
   </main>
 
   <dialog id="authModal" class="modal no-print">
-    <form method="dialog" class="modal-card" id="authForm">
+    <form class="modal-card" id="authForm">
       <div class="modal-head">
         <div>
           <h2>Entrar no app</h2>
-          <p>Digite apenas a senha. O e-mail do app já fica configurado automaticamente.</p>
+          <p>Digite a senha para acessar o Auxiliar de Orçamento.</p>
         </div>
-        <button class="modal-close" type="button" data-action="close-auth">×</button>
       </div>
 
       <label>
@@ -131,7 +129,6 @@
       <p id="authMessage" class="modal-message" aria-live="polite"></p>
 
       <div class="modal-actions">
-        <button class="secondary" type="button" data-action="close-auth">Cancelar</button>
         <button class="primary" type="submit">Entrar</button>
       </div>
     </form>

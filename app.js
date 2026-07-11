@@ -37,7 +37,6 @@ const els = {
   excludedEditor: document.getElementById("excludedEditor"),
   inspirationInput: document.getElementById("inspirationInput"),
   remoteStatus: document.getElementById("remoteStatus"),
-  btnLogin: document.getElementById("btnLogin"),
   btnLogout: document.getElementById("btnLogout"),
   btnSaveRemote: document.getElementById("btnSaveRemote"),
   btnOpenRemote: document.getElementById("btnOpenRemote"),
@@ -65,7 +64,7 @@ function init() {
   renderEditor();
   renderPreview();
   bindEvents();
-  refreshAuthUi();
+  refreshAuthUi({ promptIfLoggedOut: true });
   updateRemoteStatus();
   appInitialized = true;
   window.addEventListener("resize", updatePreviewScale);
@@ -81,11 +80,11 @@ function bindEvents() {
 
   els.btnDownloadPdf.addEventListener("click", downloadPdf);
 
-  els.btnLogin.addEventListener("click", openAuthModal);
   els.btnLogout.addEventListener("click", logoutSupabase);
   els.btnSaveRemote.addEventListener("click", handleSaveRemoteClick);
   els.btnOpenRemote.addEventListener("click", openSavedBudgetsModal);
   els.authForm.addEventListener("submit", handleAuthSubmit);
+  els.authModal.addEventListener("cancel", event => event.preventDefault());
   els.savedBudgetSearch.addEventListener("input", renderSavedBudgetsList);
 
   els.btnReset.addEventListener("click", () => {
@@ -1157,36 +1156,52 @@ function getDefaultSupabaseEmail() {
   return (window.ORCAMENTO_SUPABASE && window.ORCAMENTO_SUPABASE.defaultEmail) || "";
 }
 
-async function refreshAuthUi() {
-  if (!els.btnLogin || !els.btnLogout) return;
+async function refreshAuthUi({ promptIfLoggedOut = false } = {}) {
+  if (!els.btnLogout) return false;
 
   if (!isSupabaseConfigured()) {
-    els.btnLogin.textContent = "Configurar Supabase";
+    document.body.classList.add("auth-locked");
     els.btnLogout.classList.add("hidden");
-    return;
+    updateRemoteStatus("Configure o Supabase", "error");
+    if (promptIfLoggedOut) {
+      openAuthModal({ message: "Configure o arquivo supabase-config.js com a URL e a anon key do projeto antes de entrar." });
+    }
+    return false;
   }
 
   try {
     const client = getSupabaseClient();
     const { data } = await client.auth.getSession();
     const logged = Boolean(data.session);
-    els.btnLogin.classList.toggle("hidden", logged);
+
+    document.body.classList.toggle("auth-locked", !logged);
     els.btnLogout.classList.toggle("hidden", !logged);
+
+    if (!logged && promptIfLoggedOut) {
+      openAuthModal();
+    }
+
+    return logged;
   } catch (error) {
-    els.btnLogin.classList.remove("hidden");
+    document.body.classList.add("auth-locked");
     els.btnLogout.classList.add("hidden");
+    updateRemoteStatus("Erro de conexão", "error");
+    if (promptIfLoggedOut) {
+      openAuthModal({ message: "Não foi possível verificar o login. Confira a conexão e tente novamente." });
+    }
+    return false;
   }
 }
 
-function openAuthModal() {
-  if (!isSupabaseConfigured()) {
-    alert("Configure o arquivo supabase-config.js com a URL e a anon key do projeto antes de entrar.");
-    return;
+function openAuthModal({ message = "" } = {}) {
+  els.authMessage.textContent = message;
+  els.authPassword.value = "";
+
+  if (!els.authModal.open) {
+    els.authModal.showModal();
   }
 
-  els.authMessage.textContent = "";
-  els.authPassword.value = "";
-  els.authModal.showModal();
+  window.setTimeout(() => els.authPassword.focus(), 60);
 }
 
 async function handleAuthSubmit(event) {
@@ -1222,7 +1237,7 @@ async function logoutSupabase() {
   } catch (error) {
     // Ignora falha de logout local.
   }
-  await refreshAuthUi();
+  await refreshAuthUi({ promptIfLoggedOut: true });
 }
 
 async function ensureAuthenticated() {
@@ -1261,11 +1276,6 @@ function openSaveChoiceModal() {
 }
 
 function handleModalAction(action, id) {
-  if (action === "close-auth") {
-    els.authModal.close();
-    return true;
-  }
-
   if (action === "close-saved-budgets") {
     els.savedBudgetsModal.close();
     return true;
