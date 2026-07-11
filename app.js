@@ -421,7 +421,7 @@ function renderEditor() {
   els.inspirationsEditor.innerHTML = state.inspirations.length
     ? state.inspirations.map((item, index) => `
       <div class="image-chip" data-editor-item-id="${item.id}">
-        <img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}">
+        <img src="${attr(resolveImageSource(item))}" alt="${attr(item.name || "Inspiração")}">
         <div class="image-chip-actions">
           ${renderMoveButtons("inspiration", item.id, index, state.inspirations.length)}
           <button class="mini danger" type="button" data-action="remove-inspiration" data-id="${item.id}">Remover</button>
@@ -638,7 +638,7 @@ function renderInspirationPages() {
       <div class="sheet-content">
         <h2 class="page-title">Inspirações</h2>
         <div class="inspiration-grid">
-          ${items.map(item => `<div class="inspiration-slot"><img src="${attr(item.dataUrl)}" alt="${attr(item.name || "Inspiração")}"></div>`).join("")}
+          ${items.map(item => `<div class="inspiration-slot"><img src="${attr(resolveImageSource(item))}" alt="${attr(item.name || "Inspiração")}"></div>`).join("")}
         </div>
       </div>
     </article>
@@ -1429,6 +1429,7 @@ async function openSavedBudget(id) {
 
     suppressRemoteDirty = true;
     state = mergeState(structuredCloneSafe(defaultState), data.dados || {});
+    await hydrateStoredInspirationImages(client, state);
     saveState();
     suppressRemoteDirty = false;
     renderEditor();
@@ -1477,6 +1478,95 @@ async function deleteSavedBudget(id) {
     console.error(error);
     alert(`Não foi possível excluir. Verifique a conexão.\n\nDetalhe: ${error.message || error}`);
     updateRemoteStatus("Erro ao excluir", "error");
+  }
+}
+
+
+async function hydrateStoredInspirationImages(client, targetState) {
+  if (!targetState || !Array.isArray(targetState.inspirations) || !targetState.inspirations.length) return;
+
+  const bucket = getSupabaseBucket();
+
+  await Promise.all(targetState.inspirations.map(async item => {
+    if (!item || typeof item !== "object") return;
+
+    const currentSource = resolveImageSource(item);
+    const hasStoragePath = Boolean(item.storagePath);
+
+    if (currentSource && !hasStoragePath) {
+      item.dataUrl = currentSource;
+      return;
+    }
+
+    if (!hasStoragePath) {
+      if (item.publicUrl) item.dataUrl = item.publicUrl;
+      return;
+    }
+
+    try {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .createSignedUrl(item.storagePath, 60 * 60 * 24 * 7);
+
+      if (!error && data && data.signedUrl) {
+        item.dataUrl = data.signedUrl;
+        item.signedUrl = data.signedUrl;
+        return;
+      }
+    } catch (error) {
+      // Se a URL assinada falhar, tentamos a URL pública abaixo.
+    }
+
+    const publicUrl = getStoragePublicUrl(item.storagePath, client);
+    if (publicUrl) {
+      item.dataUrl = publicUrl;
+      item.publicUrl = publicUrl;
+      return;
+    }
+
+    if (item.publicUrl) item.dataUrl = item.publicUrl;
+  }));
+}
+
+function resolveImageSource(item) {
+  if (!item || typeof item !== "object") return "";
+
+  const candidates = [
+    item.dataUrl,
+    item.publicUrl,
+    item.signedUrl,
+    item.url,
+    item.src
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (isUsableImageSource(value)) return value;
+  }
+
+  if (item.storagePath) {
+    const publicUrl = getStoragePublicUrl(item.storagePath);
+    if (publicUrl) return publicUrl;
+  }
+
+  return "";
+}
+
+function isUsableImageSource(value) {
+  return /^(data:image\/|blob:|https?:\/\/)/i.test(String(value || "").trim());
+}
+
+function getStoragePublicUrl(path, client = supabaseClient) {
+  if (!path || !client || !client.storage) return "";
+
+  try {
+    const { data } = client.storage
+      .from(getSupabaseBucket())
+      .getPublicUrl(path);
+
+    return data && data.publicUrl ? data.publicUrl : "";
+  } catch (error) {
+    return "";
   }
 }
 
