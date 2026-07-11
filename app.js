@@ -1533,7 +1533,9 @@ async function removeBudgetStorageFiles(client, user, budgetId) {
 }
 
 function getCurrentBudgetTitle() {
-  return String(state.cover && state.cover.title ? state.cover.title : "").trim();
+  const title = String(state.cover && state.cover.title ? state.cover.title : "").trim();
+  const subtitle = String(state.cover && state.cover.subtitle ? state.cover.subtitle : "").trim();
+  return [title, subtitle].filter(Boolean).join(" - ").trim();
 }
 
 function isDataUrl(value) {
