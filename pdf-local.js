@@ -10,6 +10,8 @@
   const PAGE_HEIGHT_PT = PAGE_HEIGHT_MM * MM_TO_PT;
   const BLANK_IMAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9U6KKKAP/2Q==";
   let cachedBaseCss = null;
+  let cachedFontCss = null;
+  const fontDataUrlCache = new Map();
 
   function textEncoderBytes(text) {
     const value = String(text || "");
@@ -73,7 +75,6 @@
     return String(cssText || "")
       .replace(/@charset[^;]+;/gi, "")
       .replace(/@import[^;]+;/gi, "")
-      .replace(/@font-face\s*\{[^}]*url\([^}]+\}/gi, "")
       .replace(/url\(\s*['\"]?https?:\/\/[^)]+\)/gi, "none");
   }
 
@@ -82,7 +83,7 @@
     if (!text) return "";
     if (/^\s*@import\b/i.test(text)) return "";
     if (/^\s*@charset\b/i.test(text)) return "";
-    if (/^\s*@font-face\b/i.test(text) && /url\(/i.test(text)) return "";
+    if (/^\s*@font-face\b/i.test(text)) return text;
     return stripUnsafeCss(text);
   }
 
@@ -102,6 +103,115 @@
     }
 
     return chunks.join("\n");
+  }
+
+
+  function normalizeCssUrl(url, baseHref) {
+    const value = String(url || "").trim().replace(/^['"]|['"]$/g, "");
+    if (!value || /^data:/i.test(value) || /^blob:/i.test(value)) return value;
+    try {
+      return new URL(value, baseHref || document.baseURI).href;
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function extractFontFaceRules(cssText) {
+    const css = String(cssText || "");
+    const matches = css.match(/@font-face\s*\{[\s\S]*?\}/gi);
+    return matches ? matches.join("\n") : "";
+  }
+
+  async function urlToDataUrl(url) {
+    const absoluteUrl = new URL(url, document.baseURI).href;
+    if (fontDataUrlCache.has(absoluteUrl)) return fontDataUrlCache.get(absoluteUrl);
+
+    const response = await fetch(absoluteUrl, {
+      mode: "cors",
+      credentials: "omit",
+      cache: "force-cache"
+    });
+
+    if (!response.ok) throw new Error("Falha ao baixar fonte");
+    const dataUrl = await blobToDataUrl(await response.blob());
+    fontDataUrlCache.set(absoluteUrl, dataUrl);
+    return dataUrl;
+  }
+
+  async function inlineFontUrls(cssText, baseHref) {
+    let css = String(cssText || "");
+    const matches = Array.from(css.matchAll(/url\(\s*(['"]?)([^'"\)]+)\1\s*\)/gi));
+
+    for (const match of matches) {
+      const original = match[0];
+      const rawUrl = match[2];
+      const absoluteUrl = normalizeCssUrl(rawUrl, baseHref);
+      if (!absoluteUrl || /^data:/i.test(absoluteUrl)) continue;
+
+      try {
+        const dataUrl = await urlToDataUrl(absoluteUrl);
+        css = css.split(original).join(`url("${dataUrl}")`);
+      } catch (error) {
+        css = css.split(original).join(`url("${absoluteUrl}")`);
+      }
+    }
+
+    return css;
+  }
+
+
+  async function ensureDocumentFontsReady() {
+    if (!document.fonts || !document.fonts.ready) return;
+
+    try {
+      await Promise.all([
+        document.fonts.load('400 18px "Clear Sans"', 'Orçamento Floral'),
+        document.fonts.load('400 42pt "Magnolia Script"', 'Inspirações'),
+        document.fonts.load('400 58pt "Gistesy"', 'Patricia Zeviani'),
+        document.fonts.load('400 32pt "Gistesy"', 'Bouquet Flores')
+      ]);
+      await document.fonts.ready;
+    } catch (error) {
+      // O CSS exportado ainda leva as @font-face embutidas para o SVG/canvas.
+    }
+  }
+
+  async function collectFontCss() {
+    if (cachedFontCss !== null) return cachedFontCss;
+
+    const chunks = [];
+
+    for (const link of Array.from(document.querySelectorAll('link[rel~="stylesheet"][href]'))) {
+      const href = link.href;
+      if (!href || !/font|cdnfonts/i.test(href)) continue;
+
+      try {
+        const response = await fetch(href, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "force-cache"
+        });
+        if (!response.ok) continue;
+        const fontRules = extractFontFaceRules(await response.text());
+        if (fontRules.trim()) chunks.push(await inlineFontUrls(fontRules, href));
+      } catch (error) {
+        // Se não for possível embutir as fontes, ainda tentamos as fontes já registradas no CSSOM abaixo.
+      }
+    }
+
+    for (const sheet of Array.from(document.styleSheets || [])) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          const text = rule && rule.cssText ? String(rule.cssText) : "";
+          if (/^\s*@font-face\b/i.test(text)) chunks.push(await inlineFontUrls(text, sheet.href || document.baseURI));
+        }
+      } catch (error) {
+        // Folhas externas podem ser bloqueadas pelo navegador; o fetch acima cobre o caso normal.
+      }
+    }
+
+    cachedFontCss = chunks.join("\n");
+    return cachedFontCss;
   }
 
   async function collectBaseCss() {
@@ -144,10 +254,12 @@
   }
 
   async function buildExportCss(preview) {
+    const fontCss = await collectFontCss();
     const baseCss = await collectBaseCss();
     const vars = collectCssVariablesFrom(preview);
 
     return `
+      ${fontCss}
       ${baseCss}
       :root, html, body, .pdf-export-root {
         ${vars}
@@ -532,6 +644,7 @@
     const pages = Array.from(preview.querySelectorAll(selector));
     if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
 
+    await ensureDocumentFontsReady();
     const cssText = await buildExportCss(preview);
     const pdf = new LocalPdfDocument();
 
