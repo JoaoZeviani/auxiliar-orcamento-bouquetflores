@@ -375,45 +375,28 @@ async function downloadPdf() {
     return;
   }
 
-  if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
-    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo assets/pdf-local.js foi enviado para o GitHub junto com os demais arquivos.");
-    return;
-  }
-
   const originalText = els.btnDownloadPdf.textContent;
   els.btnDownloadPdf.disabled = true;
   els.btnDownloadPdf.textContent = "Gerando PDF...";
   document.body.classList.add("is-downloading-pdf");
 
   try {
-    await waitForPreviewImages();
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const sheets = Array.from(els.preview.querySelectorAll(".sheet"));
-
-    if (!sheets.length) throw new Error("Nenhuma página encontrada na pré-visualização.");
-
-    for (let index = 0; index < sheets.length; index += 1) {
-      const sheet = sheets[index];
-      setStatus(`Gerando PDF (${index + 1}/${sheets.length})...`);
-
-      const canvas = await capturePreviewSheet(sheet);
-      const imageData = canvasToJpegDataUrl(canvas);
-
-      if (index > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
-    }
-
-    pdf.save(`${buildPdfFileName()}.pdf`);
-    setStatus("PDF baixado.");
+    await waitForPreviewAssets();
+    await window.OrcamentoPdf.downloadFromPreview(els.preview, {
+      filename: `${buildPdfFileName()}.pdf`,
+      pageSelector: ".sheet",
+      pageWidthPx: 794,
+      pageHeightPx: 1123,
+      scales: [2, 1.5, 1.25, 1]
+    });
   } catch (error) {
     console.error(error);
-    const opened = openPrintableFallback();
-    if (opened) {
-      alert("Não foi possível baixar automaticamente neste navegador, então abri uma versão fiel da pré-visualização. Use Salvar como PDF nessa janela.");
-    } else {
-      alert(`Não foi possível baixar o PDF automaticamente. A pré-visualização continua fiel ao PDF; tente reduzir a quantidade/tamanho das imagens ou atualizar os arquivos do projeto.\n\nDetalhe: ${error.message || error}`);
+    try {
+      openPrintableFallbackWindow();
+      alert("Não consegui concluir o download automático neste navegador. Abri uma versão alternativa com a mesma pré-visualização para salvar como PDF.");
+    } catch (fallbackError) {
+      console.error(fallbackError);
+      alert(`Não foi possível baixar o PDF. Confira se o arquivo assets/pdf-local.js foi atualizado junto com o app.js e tente novamente.\n\nDetalhe: ${error.message || error}`);
     }
   } finally {
     document.body.classList.remove("is-downloading-pdf");
@@ -422,56 +405,20 @@ async function downloadPdf() {
   }
 }
 
-async function capturePreviewSheet(sheet) {
-  const width = Math.max(1, Math.ceil(sheet.scrollWidth || sheet.getBoundingClientRect().width || 794));
-  const height = Math.max(1, Math.ceil(sheet.scrollHeight || sheet.getBoundingClientRect().height || 1123));
-  const scales = [1.75, 1.35, 1, 0.82];
-  let lastError = null;
-
-  for (const scale of scales) {
-    try {
-      const canvas = await window.html2canvas(sheet, {
-        scale,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#ffffff",
-        logging: false,
-        windowWidth: width,
-        windowHeight: height
-      });
-
-      if (!canvas || !canvas.width || !canvas.height) {
-        throw new Error("Canvas vazio ao gerar página.");
-      }
-
-      return canvas;
-    } catch (error) {
-      lastError = error;
-      await delay(120);
-    }
+function loadPdfLibrary() {
+  if (window.OrcamentoPdf && typeof window.OrcamentoPdf.downloadFromPreview === "function") {
+    return Promise.resolve();
   }
 
-  throw lastError || new Error("Falha ao capturar a página da pré-visualização.");
+  return Promise.reject(new Error("Gerador de PDF local não encontrado"));
 }
 
-function canvasToJpegDataUrl(canvas) {
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
-  if (/^data:image\/jpe?g/i.test(dataUrl)) return dataUrl;
+async function waitForPreviewAssets() {
+  if (!els.preview) return;
 
-  const flattened = document.createElement("canvas");
-  flattened.width = canvas.width;
-  flattened.height = canvas.height;
-  const ctx = flattened.getContext("2d", { alpha: false });
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, flattened.width, flattened.height);
-  ctx.drawImage(canvas, 0, 0);
-  return flattened.toDataURL("image/jpeg", 0.94);
-}
-
-function waitForPreviewImages() {
   const images = Array.from(els.preview.querySelectorAll("img"));
-  const promises = images.map(image => new Promise(resolve => {
-    if (image.complete) {
+  await Promise.all(images.map(image => new Promise(resolve => {
+    if (image.complete && image.naturalWidth) {
       resolve();
       return;
     }
@@ -479,61 +426,19 @@ function waitForPreviewImages() {
     const done = () => resolve();
     image.addEventListener("load", done, { once: true });
     image.addEventListener("error", done, { once: true });
-    window.setTimeout(done, 2400);
-  }));
-
-  return Promise.all(promises);
+  })));
 }
 
-function delay(ms) {
-  return new Promise(resolve => window.setTimeout(resolve, ms));
+function openPrintableFallbackWindow() {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) throw new Error("Não foi possível abrir janela alternativa");
+
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escapeHtml(buildPdfFileName())}</title><link rel="stylesheet" href="style.css"><style>body{background:#fff!important}.topbar,.editor,.no-print,dialog{display:none!important}.preview-wrap{display:block!important;overflow:visible!important;padding:0!important}.pdf-document{transform:none!important}.sheet-frame{width:auto!important;height:auto!important}.sheet{margin:0 auto 0!important;box-shadow:none!important;transform:none!important}@media print{.sheet{page-break-after:always}}</style></head><body>${els.preview.outerHTML}<script>setTimeout(()=>window.print(),500)<\/script></body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
-function openPrintableFallback() {
-  try {
-    const printable = window.open("", "_blank");
-    if (!printable) return false;
-
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(node => node.outerHTML)
-      .join("\n");
-
-    printable.document.open();
-    printable.document.write(`<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(buildPdfFileName())}</title>
-${styles}
-<style>
-  body { margin: 0; background: #ffffff !important; }
-  .pdf-document { display: block !important; width: auto !important; max-width: none !important; overflow: visible !important; }
-  .sheet-frame { width: 210mm !important; height: 297mm !important; min-height: 297mm !important; overflow: hidden !important; page-break-after: always; break-after: page; }
-  .sheet-frame:last-child { page-break-after: auto; break-after: auto; }
-  .sheet { transform: none !important; box-shadow: none !important; }
-</style>
-</head>
-<body class="is-downloading-pdf">
-${els.preview.outerHTML}
-</body>
-</html>`);
-    printable.document.close();
-    printable.focus();
-    window.setTimeout(() => printable.print(), 500);
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-}
-
-function loadPdfLibrary() {
-  if (window.html2canvas && window.jspdf && window.jspdf.jsPDF) {
-    return Promise.resolve();
-  }
-
-  return Promise.reject(new Error("Gerador de PDF local não encontrado"));
-}
 function renderEditor() {
   document.querySelector('[data-section="cover"][data-field="title"]').value = state.cover.title || "";
   document.querySelector('[data-section="cover"][data-field="subtitle"]').value = state.cover.subtitle || "";

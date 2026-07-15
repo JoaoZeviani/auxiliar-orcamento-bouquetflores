@@ -1,5 +1,6 @@
 /* Gerador local de PDF para o Auxiliar de Orçamento Floral.
-   Mantém o botão Baixar PDF sem depender de html2pdf/jsPDF/html2canvas por CDN. */
+   O download é feito a partir das folhas já renderizadas na pré-visualização,
+   para manter o PDF final visualmente fiel ao que aparece na tela. */
 (function () {
   "use strict";
 
@@ -8,10 +9,12 @@
   const PAGE_HEIGHT_MM = 297;
   const PAGE_WIDTH_PT = PAGE_WIDTH_MM * MM_TO_PT;
   const PAGE_HEIGHT_PT = PAGE_HEIGHT_MM * MM_TO_PT;
+  const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
   function textEncoderBytes(text) {
-    const bytes = new Uint8Array(text.length);
-    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i) & 0xff;
+    const value = String(text || "");
+    const bytes = new Uint8Array(value.length);
+    for (let i = 0; i < value.length; i += 1) bytes[i] = value.charCodeAt(i) & 0xff;
     return bytes;
   }
 
@@ -46,10 +49,16 @@
   function getJpegSize(bytes) {
     if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return { width: 1, height: 1 };
     let i = 2;
-    while (i < bytes.length) {
-      if (bytes[i] !== 0xff) { i += 1; continue; }
+    while (i + 9 < bytes.length) {
+      if (bytes[i] !== 0xff) {
+        i += 1;
+        continue;
+      }
+
       const marker = bytes[i + 1];
       const length = (bytes[i + 2] << 8) + bytes[i + 3];
+      if (!length || length < 2) break;
+
       if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
         const height = (bytes[i + 5] << 8) + bytes[i + 6];
         const width = (bytes[i + 7] << 8) + bytes[i + 8];
@@ -62,31 +71,52 @@
 
   function collectCssText() {
     const chunks = [];
+
     for (const sheet of Array.from(document.styleSheets)) {
       try {
         for (const rule of Array.from(sheet.cssRules || [])) {
-          const cssText = rule.cssText || "";
-          if (/^@import/i.test(cssText.trim())) continue;
-          chunks.push(cssText);
+          chunks.push(rule.cssText);
         }
       } catch (error) {
-        // Folhas externas sem permissão de leitura são ignoradas.
+        // Folhas externas que o navegador não permite ler são ignoradas.
+        // As regras principais do PDF ficam no style.css do próprio projeto.
       }
     }
 
     chunks.push(`
-      html, body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
-      body { width: 100% !important; min-width: 0 !important; overflow: hidden !important; }
-      .sheet { margin: 0 !important; box-shadow: none !important; transform: none !important; }
-      .sheet-frame { width: 210mm !important; height: 297mm !important; overflow: hidden !important; }
-      img { max-width: 100%; }
-      .no-print, dialog { display: none !important; }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 794px !important;
+        height: 1123px !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
+      }
+      *, *::before, *::after { box-sizing: border-box !important; }
+      .sheet {
+        position: relative !important;
+        display: block !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        min-width: 210mm !important;
+        max-width: 210mm !important;
+        min-height: 297mm !important;
+        max-height: 297mm !important;
+        margin: 0 !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+      .sheet-frame,
+      .pdf-document,
+      .preview-wrap {
+        transform: none !important;
+        overflow: visible !important;
+      }
+      .topbar, .editor, .no-print, dialog { display: none !important; }
     `);
 
     return chunks.join("\n");
   }
-
-  const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
@@ -97,34 +127,30 @@
     });
   }
 
-  function waitForDomImage(image) {
+  function loadImage(src, { crossOrigin = null } = {}) {
     return new Promise((resolve, reject) => {
-      if (image.complete && image.naturalWidth) {
-        resolve(image);
-        return;
-      }
+      const image = new Image();
+      image.decoding = "async";
+      if (crossOrigin) image.crossOrigin = crossOrigin;
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error("Falha ao carregar imagem"));
+      image.src = src;
     });
   }
 
-  async function compressDataUrl(dataUrl) {
+  async function compressImageDataUrl(dataUrl, { maxSide = 1800, quality = 0.9 } = {}) {
     if (!/^data:image\//i.test(String(dataUrl || ""))) return dataUrl;
 
-    const image = new Image();
-    image.decoding = "sync";
-    image.src = dataUrl;
-    await waitForDomImage(image);
-
+    const image = await loadImage(dataUrl);
     const width = image.naturalWidth || image.width || 1;
     const height = image.naturalHeight || image.height || 1;
     const longest = Math.max(width, height);
 
-    if (longest <= 1600 && String(dataUrl).length < 900000) {
+    if (longest <= maxSide && String(dataUrl).length < 1300000) {
       return dataUrl;
     }
 
-    const ratio = Math.min(1, 1600 / longest);
+    const ratio = Math.min(1, maxSide / longest);
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(width * ratio));
     canvas.height = Math.max(1, Math.round(height * ratio));
@@ -132,57 +158,85 @@
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.88);
+    return canvas.toDataURL("image/jpeg", quality);
   }
 
-  async function sourceToSafeDataUrl(src) {
+  async function fetchImageAsDataUrl(src) {
+    const absoluteUrl = new URL(src, document.baseURI).href;
+    const response = await fetch(absoluteUrl, {
+      mode: "cors",
+      credentials: "omit",
+      cache: "force-cache"
+    });
+    if (!response.ok) throw new Error("Falha ao baixar imagem");
+    return blobToDataUrl(await response.blob());
+  }
+
+  async function imageElementToDataUrl(img) {
+    const src = img.currentSrc || img.getAttribute("src") || "";
     if (!src) return TRANSPARENT_PIXEL;
 
     if (/^data:/i.test(src)) {
-      return compressDataUrl(src);
+      return compressImageDataUrl(src);
     }
 
-    const absoluteUrl = new URL(src, document.baseURI).href;
-    const response = await fetch(absoluteUrl, { mode: "cors", credentials: "omit", cache: "force-cache" });
-    if (!response.ok) throw new Error("Falha ao baixar imagem");
-    const blob = await response.blob();
-    const dataUrl = await blobToDataUrl(blob);
-    return compressDataUrl(dataUrl);
+    try {
+      return await compressImageDataUrl(await fetchImageAsDataUrl(src));
+    } catch (fetchError) {
+      // Última tentativa: se a imagem já estiver no DOM e o navegador permitir,
+      // desenha em canvas. Se o canvas ficar bloqueado por CORS, cai no pixel transparente.
+      try {
+        const loaded = img.complete && img.naturalWidth ? img : await loadImage(src, { crossOrigin: "anonymous" });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, loaded.naturalWidth || loaded.width || 1);
+        canvas.height = Math.max(1, loaded.naturalHeight || loaded.height || 1);
+        const ctx = canvas.getContext("2d", { alpha: false });
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(loaded, 0, 0);
+        return await compressImageDataUrl(canvas.toDataURL("image/jpeg", 0.9));
+      } catch (canvasError) {
+        return TRANSPARENT_PIXEL;
+      }
+    }
   }
 
-  async function inlineImages(root) {
-    const images = Array.from(root.querySelectorAll("img"));
-    await Promise.all(images.map(async img => {
-      const src = img.getAttribute("src");
-      img.removeAttribute("srcset");
-      img.removeAttribute("sizes");
-      img.setAttribute("crossorigin", "anonymous");
+  async function inlineImages(sourcePage, clonedPage) {
+    const sourceImages = Array.from(sourcePage.querySelectorAll("img"));
+    const clonedImages = Array.from(clonedPage.querySelectorAll("img"));
 
-      try {
-        img.setAttribute("src", await sourceToSafeDataUrl(src));
-      } catch (error) {
-        // Para não cancelar o PDF inteiro quando uma imagem externa falhar,
-        // substitui apenas aquela imagem por um pixel transparente.
-        img.setAttribute("src", TRANSPARENT_PIXEL);
-      }
+    await Promise.all(clonedImages.map(async (clonedImage, index) => {
+      const sourceImage = sourceImages[index] || clonedImage;
+      clonedImage.removeAttribute("srcset");
+      clonedImage.removeAttribute("sizes");
+      clonedImage.setAttribute("crossorigin", "anonymous");
+      clonedImage.setAttribute("src", await imageElementToDataUrl(sourceImage));
     }));
   }
 
-  function waitForImage(image) {
-    return new Promise((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Falha ao renderizar página do PDF"));
-    });
+  function makeExportPage(sourcePage) {
+    const clone = sourcePage.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.style.margin = "0";
+    clone.style.transform = "none";
+    clone.style.boxShadow = "none";
+    clone.style.width = "210mm";
+    clone.style.height = "297mm";
+    clone.style.minWidth = "210mm";
+    clone.style.maxWidth = "210mm";
+    clone.style.minHeight = "297mm";
+    clone.style.maxHeight = "297mm";
+    clone.style.overflow = "hidden";
+    return clone;
   }
 
-  async function renderElementToCanvas(element, options) {
-    const scale = Number(options && options.scale) || 2;
-    const width = Math.ceil((options && options.windowWidth) || element.scrollWidth || element.getBoundingClientRect().width || 794);
-    const height = Math.ceil((options && options.windowHeight) || element.scrollHeight || element.getBoundingClientRect().height || 1123);
-    const backgroundColor = (options && options.backgroundColor) || "#ffffff";
+  async function renderPageToCanvas(sourcePage, options) {
+    const pageWidthPx = Number(options.pageWidthPx) || 794;
+    const pageHeightPx = Number(options.pageHeightPx) || 1123;
+    const scale = Number(options.scale) || 2;
 
-    const clone = element.cloneNode(true);
-    await inlineImages(clone);
+    const clonedPage = makeExportPage(sourcePage);
+    await inlineImages(sourcePage, clonedPage);
 
     const xhtml = `
       <html xmlns="http://www.w3.org/1999/xhtml">
@@ -190,54 +244,53 @@
           <meta charset="utf-8" />
           <style>${collectCssText()}</style>
         </head>
-        <body>${clone.outerHTML}</body>
+        <body>${clonedPage.outerHTML}</body>
       </html>
     `;
 
     const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-        <foreignObject x="0" y="0" width="100%" height="100%">${xhtml}</foreignObject>
+      <svg xmlns="http://www.w3.org/2000/svg" width="${pageWidthPx}" height="${pageHeightPx}" viewBox="0 0 ${pageWidthPx} ${pageHeightPx}">
+        <foreignObject x="0" y="0" width="${pageWidthPx}" height="${pageHeightPx}">${xhtml}</foreignObject>
       </svg>
     `;
 
     const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(svgBlob);
-    const image = new Image();
-    image.decoding = "sync";
-    image.src = url;
-    await waitForImage(image);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.ceil(width * scale));
-    canvas.height = Math.max(1, Math.ceil(height * scale));
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.drawImage(image, 0, 0, width, height);
-    URL.revokeObjectURL(url);
-    return canvas;
+    try {
+      const image = await loadImage(url);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.ceil(pageWidthPx * scale));
+      canvas.height = Math.max(1, Math.ceil(pageHeightPx * scale));
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(image, 0, 0, pageWidthPx, pageHeightPx);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
-  class LocalJsPdf {
+  function canvasToJpegDataUrl(canvas, quality) {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality || 0.92);
+    if (!/^data:image\/jpeg;base64,/i.test(dataUrl)) {
+      throw new Error("Falha ao converter página para imagem do PDF");
+    }
+    return dataUrl;
+  }
+
+  class LocalPdfDocument {
     constructor() {
-      this.pages = [[]];
+      this.pages = [];
     }
 
-    addPage() {
-      this.pages.push([]);
-      return this;
-    }
-
-    addImage(dataUrl, format, xMm, yMm, widthMm, heightMm) {
+    addPageImage(dataUrl, xMm, yMm, widthMm, heightMm) {
       const { mime, bytes } = dataUrlToBytes(dataUrl);
-      if (!/jpeg|jpg/.test(mime) && !/jpeg|jpg/i.test(format || "")) {
-        throw new Error("O gerador local espera imagens JPEG");
-      }
-
+      if (!/jpeg|jpg/.test(mime)) throw new Error("O PDF local usa páginas JPEG");
       const size = getJpegSize(bytes);
-      const currentPage = this.pages[this.pages.length - 1];
-      currentPage.push({
+      this.pages.push({
         bytes,
         pixelWidth: size.width,
         pixelHeight: size.height,
@@ -246,10 +299,11 @@
         width: (Number(widthMm) || PAGE_WIDTH_MM) * MM_TO_PT,
         height: (Number(heightMm) || PAGE_HEIGHT_MM) * MM_TO_PT
       });
-      return this;
     }
 
     outputBytes() {
+      if (!this.pages.length) throw new Error("Nenhuma página foi enviada ao PDF");
+
       const parts = [];
       const offsets = [0];
       const write = value => {
@@ -265,44 +319,32 @@
 
       const catalogId = addObject("");
       const pagesId = addObject("");
-      const pageIds = [];
       const kids = [];
 
       this.pages.forEach((page, pageIndex) => {
-        const imageEntries = [];
-        const xObjects = [];
-        let contents = "";
+        const imageName = `Im${pageIndex + 1}`;
+        const imageId = addObject([
+          `<< /Type /XObject /Subtype /Image /Width ${page.pixelWidth} /Height ${page.pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.bytes.length} >>\nstream\n`,
+          page.bytes,
+          "\nendstream"
+        ]);
 
-        page.forEach((image, imageIndex) => {
-          const imageName = `Im${pageIndex + 1}_${imageIndex + 1}`;
-          const imageId = addObject([
-            `<< /Type /XObject /Subtype /Image /Width ${image.pixelWidth} /Height ${image.pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`,
-            image.bytes,
-            "\nendstream"
-          ]);
-          imageEntries.push(`/${imageName} ${imageId} 0 R`);
-
-          const x = image.x;
-          const y = PAGE_HEIGHT_PT - image.y - image.height;
-          contents += `q\n${image.width.toFixed(3)} 0 0 ${image.height.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm\n/${imageName} Do\nQ\n`;
-        });
-
-        const contentBytes = textEncoderBytes(contents);
+        const x = page.x;
+        const y = PAGE_HEIGHT_PT - page.y - page.height;
+        const content = `q\n${page.width.toFixed(3)} 0 0 ${page.height.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm\n/${imageName} Do\nQ\n`;
+        const contentBytes = textEncoderBytes(content);
         const contentId = addObject([
           `<< /Length ${contentBytes.length} >>\nstream\n`,
           contentBytes,
           "\nendstream"
         ]);
 
-        xObjects.push(imageEntries.join(" "));
-        const resources = imageEntries.length ? `<< /XObject << ${xObjects.join(" ")} >> >>` : "<< >>";
-        const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH_PT.toFixed(3)} ${PAGE_HEIGHT_PT.toFixed(3)}] /Resources ${resources} /Contents ${contentId} 0 R >>`);
-        pageIds.push(pageId);
+        const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH_PT.toFixed(3)} ${PAGE_HEIGHT_PT.toFixed(3)}] /Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
         kids.push(`${pageId} 0 R`);
       });
 
       objects[catalogId - 1] = [`<< /Type /Catalog /Pages ${pagesId} 0 R >>`];
-      objects[pagesId - 1] = [`<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${pageIds.length} >>`];
+      objects[pagesId - 1] = [`<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`];
 
       write("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
       objects.forEach((bodyParts, index) => {
@@ -332,12 +374,52 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return this;
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
     }
   }
 
-  window.html2canvas = window.html2canvas || renderElementToCanvas;
+  async function renderWithFallbackScales(page, options) {
+    const scales = Array.isArray(options.scales) && options.scales.length ? options.scales : [2, 1.5, 1.25, 1];
+    let lastError = null;
+
+    for (const scale of scales) {
+      try {
+        return await renderPageToCanvas(page, { ...options, scale });
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("Falha ao renderizar página");
+  }
+
+  async function downloadFromPreview(preview, options = {}) {
+    if (!preview) throw new Error("Pré-visualização não encontrada");
+
+    const selector = options.pageSelector || ".sheet";
+    const pages = Array.from(preview.querySelectorAll(selector));
+    if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
+
+    const pdf = new LocalPdfDocument();
+
+    for (const page of pages) {
+      const canvas = await renderWithFallbackScales(page, options);
+      const jpeg = canvasToJpegDataUrl(canvas, 0.92);
+      pdf.addPageImage(jpeg, 0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
+      canvas.width = 1;
+      canvas.height = 1;
+    }
+
+    pdf.save(options.filename || "orcamento-floral.pdf");
+  }
+
+  window.OrcamentoPdf = {
+    downloadFromPreview
+  };
+
+  // Compatibilidade com código antigo, caso algum arquivo não tenha sido substituído.
+  window.html2canvas = window.html2canvas || function (element, options) {
+    return renderWithFallbackScales(element, options || {});
+  };
   window.jspdf = window.jspdf || {};
-  window.jspdf.jsPDF = window.jspdf.jsPDF || LocalJsPdf;
 }());
