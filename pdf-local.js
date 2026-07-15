@@ -1,5 +1,6 @@
 /* Gerador local de PDF para o Auxiliar de Orçamento Floral.
-   O PDF é gerado exclusivamente a partir das folhas já renderizadas na pré-visualização. */
+   A geração usa a pré-visualização como fonte da verdade, mas NÃO usa
+   SVG/foreignObject. Isso evita o erro de canvas contaminado no Android. */
 (function () {
   "use strict";
 
@@ -8,10 +9,10 @@
   const PAGE_HEIGHT_MM = 297;
   const PAGE_WIDTH_PT = PAGE_WIDTH_MM * MM_TO_PT;
   const PAGE_HEIGHT_PT = PAGE_HEIGHT_MM * MM_TO_PT;
-  const BLANK_IMAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9U6KKKAP/2Q==";
-  let cachedBaseCss = null;
-  let cachedFontCss = null;
-  const fontDataUrlCache = new Map();
+  const DEFAULT_PAGE_WIDTH_PX = 794;
+  const DEFAULT_PAGE_HEIGHT_PX = 1123;
+  const BLANK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
+  const imageCache = new Map();
 
   function textEncoderBytes(text) {
     const value = String(text || "");
@@ -42,291 +43,26 @@
   function dataUrlToBytes(dataUrl) {
     const match = String(dataUrl || "").match(/^data:([^;]+);base64,(.+)$/);
     if (!match) throw new Error("Imagem do PDF inválida");
-    return {
-      mime: match[1].toLowerCase(),
-      bytes: base64ToBytes(match[2])
-    };
+    return { mime: match[1].toLowerCase(), bytes: base64ToBytes(match[2]) };
   }
 
   function getJpegSize(bytes) {
     if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return { width: 1, height: 1 };
     let i = 2;
     while (i + 9 < bytes.length) {
-      if (bytes[i] !== 0xff) {
-        i += 1;
-        continue;
-      }
-
+      if (bytes[i] !== 0xff) { i += 1; continue; }
       const marker = bytes[i + 1];
       const length = (bytes[i + 2] << 8) + bytes[i + 3];
       if (!length || length < 2) break;
-
       if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
-        const height = (bytes[i + 5] << 8) + bytes[i + 6];
-        const width = (bytes[i + 7] << 8) + bytes[i + 8];
-        return { width, height };
+        return {
+          height: (bytes[i + 5] << 8) + bytes[i + 6],
+          width: (bytes[i + 7] << 8) + bytes[i + 8]
+        };
       }
       i += 2 + length;
     }
     return { width: 1, height: 1 };
-  }
-
-  function stripUnsafeCss(cssText) {
-    return sanitizeCssUrls(String(cssText || ""))
-      .replace(/@charset[^;]+;/gi, "")
-      .replace(/@import[^;]+;/gi, "");
-  }
-
-  function sanitizeCssUrls(cssText) {
-    // O SVG usado internamente para rasterizar a prévia precisa ser 100%
-    // origin-clean. No Android, qualquer url(...) externa restante em CSS
-    // pode contaminar o canvas e impedir canvas.toDataURL().
-    return String(cssText || "").replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (full, quote, rawUrl) => {
-      const value = String(rawUrl || "").trim();
-      if (!value) return "none";
-      if (/^data:/i.test(value)) return full;
-      // blob:, http(s):, caminhos relativos, arquivos locais e fragmentos SVG
-      // são retirados do CSS exportado. Imagens reais do documento são
-      // convertidas separadamente para data:image/jpeg antes da renderização.
-      return "none";
-    });
-  }
-
-  function hasUnsafeCssUrl(cssText) {
-    return /url\(\s*(['"]?)(?!data:)[^'")]+\1\s*\)/i.test(String(cssText || ""));
-  }
-
-  function cssRuleText(rule) {
-    const text = rule && rule.cssText ? String(rule.cssText) : "";
-    if (!text) return "";
-    if (/^\s*@import\b/i.test(text)) return "";
-    if (/^\s*@charset\b/i.test(text)) return "";
-    if (/^\s*@font-face\b/i.test(text)) return text;
-    return stripUnsafeCss(text);
-  }
-
-  function collectCssFromCssom() {
-    const chunks = [];
-
-    for (const sheet of Array.from(document.styleSheets || [])) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          const text = cssRuleText(rule);
-          if (text) chunks.push(text);
-        }
-      } catch (error) {
-        // Alguns @imports externos deixam a folha inacessível. Nesse caso,
-        // o fallback é buscar style.css diretamente abaixo.
-      }
-    }
-
-    return chunks.join("\n");
-  }
-
-
-  function normalizeCssUrl(url, baseHref) {
-    const value = String(url || "").trim().replace(/^['"]|['"]$/g, "");
-    if (!value || /^data:/i.test(value) || /^blob:/i.test(value)) return value;
-    try {
-      return new URL(value, baseHref || document.baseURI).href;
-    } catch (error) {
-      return value;
-    }
-  }
-
-  function extractFontFaceRules(cssText) {
-    const css = String(cssText || "");
-    const matches = css.match(/@font-face\s*\{[\s\S]*?\}/gi);
-    return matches ? matches.join("\n") : "";
-  }
-
-  async function urlToDataUrl(url) {
-    const absoluteUrl = new URL(url, document.baseURI).href;
-    if (fontDataUrlCache.has(absoluteUrl)) return fontDataUrlCache.get(absoluteUrl);
-
-    const response = await fetch(absoluteUrl, {
-      mode: "cors",
-      credentials: "omit",
-      cache: "force-cache"
-    });
-
-    if (!response.ok) throw new Error("Falha ao baixar fonte");
-    const dataUrl = await blobToDataUrl(await response.blob());
-    fontDataUrlCache.set(absoluteUrl, dataUrl);
-    return dataUrl;
-  }
-
-  async function inlineFontUrls(cssText, baseHref) {
-    let css = String(cssText || "");
-    const matches = Array.from(css.matchAll(/url\(\s*(['"]?)([^'"\)]+)\1\s*\)/gi));
-
-    for (const match of matches) {
-      const original = match[0];
-      const rawUrl = match[2];
-      const absoluteUrl = normalizeCssUrl(rawUrl, baseHref);
-      if (!absoluteUrl || /^data:/i.test(absoluteUrl)) continue;
-
-      try {
-        const dataUrl = await urlToDataUrl(absoluteUrl);
-        css = css.split(original).join(`url("${dataUrl}")`);
-      } catch (error) {
-        // Não deixamos URL externa dentro do SVG exportado. No Android isso
-        // contamina o canvas e causa: Tainted canvases may not be exported.
-        css = css.split(original).join("none");
-      }
-    }
-
-    return sanitizeCssUrls(css);
-  }
-
-
-  async function ensureDocumentFontsReady() {
-    if (!document.fonts || !document.fonts.ready) return;
-
-    try {
-      await Promise.all([
-        document.fonts.load('400 18px "Clear Sans"', 'Orçamento Floral'),
-        document.fonts.load('400 42pt "Magnolia Script"', 'Inspirações'),
-        document.fonts.load('400 58pt "Gistesy"', 'Patricia Zeviani'),
-        document.fonts.load('400 32pt "Gistesy"', 'Bouquet Flores')
-      ]);
-      await document.fonts.ready;
-    } catch (error) {
-      // O CSS exportado ainda leva as @font-face embutidas para o SVG/canvas.
-    }
-  }
-
-  async function collectFontCss() {
-    if (cachedFontCss !== null) return cachedFontCss;
-
-    const chunks = [];
-
-    for (const link of Array.from(document.querySelectorAll('link[rel~="stylesheet"][href]'))) {
-      const href = link.href;
-      if (!href || !/font|cdnfonts/i.test(href)) continue;
-
-      try {
-        const response = await fetch(href, {
-          mode: "cors",
-          credentials: "omit",
-          cache: "force-cache"
-        });
-        if (!response.ok) continue;
-        const fontRules = extractFontFaceRules(await response.text());
-        if (fontRules.trim()) chunks.push(await inlineFontUrls(fontRules, href));
-      } catch (error) {
-        // Se não for possível embutir as fontes, ainda tentamos as fontes já registradas no CSSOM abaixo.
-      }
-    }
-
-    for (const sheet of Array.from(document.styleSheets || [])) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          const text = rule && rule.cssText ? String(rule.cssText) : "";
-          if (/^\s*@font-face\b/i.test(text)) chunks.push(await inlineFontUrls(text, sheet.href || document.baseURI));
-        }
-      } catch (error) {
-        // Folhas externas podem ser bloqueadas pelo navegador; o fetch acima cobre o caso normal.
-      }
-    }
-
-    cachedFontCss = chunks
-      .map(chunk => sanitizeCssUrls(chunk))
-      .filter(chunk => chunk.trim() && !hasUnsafeCssUrl(chunk))
-      .join("\n");
-    return cachedFontCss;
-  }
-
-  async function collectBaseCss() {
-    if (cachedBaseCss) return cachedBaseCss;
-
-    let css = "";
-    try {
-      const response = await fetch(new URL("style.css", document.baseURI).href, { cache: "force-cache" });
-      if (response.ok) css = await response.text();
-    } catch (error) {
-      css = "";
-    }
-
-    if (!css.trim()) {
-      css = collectCssFromCssom();
-    }
-
-    cachedBaseCss = stripUnsafeCss(css);
-    return cachedBaseCss;
-  }
-
-  function collectCssVariablesFrom(element) {
-    const chunks = [];
-    const styles = [
-      getComputedStyle(document.documentElement),
-      element ? getComputedStyle(element) : null
-    ].filter(Boolean);
-
-    styles.forEach(style => {
-      for (let i = 0; i < style.length; i += 1) {
-        const prop = style[i];
-        if (prop && prop.startsWith("--")) {
-          const value = style.getPropertyValue(prop).trim();
-          if (value) chunks.push(`${prop}: ${value};`);
-        }
-      }
-    });
-
-    return chunks.join("\n");
-  }
-
-  async function buildExportCss(preview, options = {}) {
-    const includeFonts = options.includeFonts !== false;
-    const fontCss = includeFonts ? await collectFontCss() : "";
-    const baseCss = await collectBaseCss();
-    const vars = collectCssVariablesFrom(preview);
-
-    return sanitizeCssUrls(`
-      ${fontCss}
-      ${baseCss}
-      :root, html, body, .pdf-export-root {
-        ${vars}
-      }
-      html, body {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 794px !important;
-        height: 1123px !important;
-        overflow: hidden !important;
-        background: #ffffff !important;
-      }
-      body {
-        display: block !important;
-      }
-      *, *::before, *::after {
-        box-sizing: border-box !important;
-      }
-      .sheet {
-        position: relative !important;
-        display: block !important;
-        width: 210mm !important;
-        height: 297mm !important;
-        min-width: 210mm !important;
-        max-width: 210mm !important;
-        min-height: 297mm !important;
-        max-height: 297mm !important;
-        margin: 0 !important;
-        transform: none !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-        page-break-after: always !important;
-      }
-      .sheet-frame,
-      .pdf-document,
-      .preview-wrap {
-        transform: none !important;
-        overflow: visible !important;
-      }
-      .topbar, .editor, .no-print, dialog {
-        display: none !important;
-      }
-    `);
   }
 
   function blobToDataUrl(blob) {
@@ -338,307 +74,482 @@
     });
   }
 
-  function loadImage(src, { crossOrigin = null, timeout = 15000 } = {}) {
+  function loadImage(src, timeout = 20000) {
     return new Promise((resolve, reject) => {
-      const image = new Image();
+      const img = new Image();
       let settled = false;
       const timer = setTimeout(() => {
         if (settled) return;
         settled = true;
         reject(new Error("Tempo esgotado ao carregar imagem"));
       }, timeout);
-
-      image.decoding = "async";
-      if (crossOrigin) image.crossOrigin = crossOrigin;
-
-      image.onload = () => {
+      img.decoding = "async";
+      img.onload = () => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve(image);
+        resolve(img);
       };
-
-      image.onerror = () => {
+      img.onerror = () => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         reject(new Error("Falha ao carregar imagem"));
       };
-
-      image.src = src;
+      img.src = src;
     });
   }
 
-  function isTransparentLogoImage(img) {
-    if (!img || !img.getAttribute) return false;
-    const className = String(
-      (img.className && img.className.baseVal) || img.className || ""
-    );
-    const alt = String(img.getAttribute("alt") || "");
-    const src = String(img.currentSrc || img.getAttribute("src") || "");
-
-    return /\b(pdf-logo|pdf-page-logo)\b/i.test(className)
-      || /logotipo|bouquet\s*flores/i.test(alt)
-      || /logo_bouquet_flores/i.test(src);
+  function isActuallyVisible(element) {
+    if (!element || element.nodeType !== 1) return false;
+    const style = getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
 
-  async function rasterizeImageDataUrl(dataUrl, {
-    maxSide = 1600,
-    quality = 0.88,
-    preserveAlpha = false
-  } = {}) {
-    if (!/^data:image\//i.test(String(dataUrl || ""))) return BLANK_IMAGE;
+  function parseCssColor(value) {
+    const color = String(value || "").trim();
+    if (!color || color === "transparent") return null;
+    if (/rgba?\(/i.test(color)) {
+      const nums = color.match(/[\d.]+/g) || [];
+      if (nums.length >= 4 && Number(nums[3]) === 0) return null;
+    }
+    return color;
+  }
 
+  function parsePx(value) {
+    const n = Number.parseFloat(String(value || "0"));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function getPageMapper(page, targetWidth, targetHeight) {
+    const pageRect = page.getBoundingClientRect();
+    const scaleX = targetWidth / Math.max(1, pageRect.width);
+    const scaleY = targetHeight / Math.max(1, pageRect.height);
+    return {
+      pageRect,
+      x(value) { return (value - pageRect.left) * scaleX; },
+      y(value) { return (value - pageRect.top) * scaleY; },
+      w(value) { return value * scaleX; },
+      h(value) { return value * scaleY; },
+      scaleX,
+      scaleY
+    };
+  }
+
+  function rectToPage(rect, map) {
+    const x = map.x(rect.left);
+    const y = map.y(rect.top);
+    const width = map.w(rect.width);
+    const height = map.h(rect.height);
+    return { x, y, width, height, right: x + width, bottom: y + height };
+  }
+
+  function intersectsPage(rect, targetWidth, targetHeight) {
+    return rect.right > 0 && rect.bottom > 0 && rect.x < targetWidth && rect.y < targetHeight;
+  }
+
+  function roundedRectPath(ctx, x, y, width, height, radius) {
+    const r = clamp(radius || 0, 0, Math.min(width, height) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function averageRadiusPx(style, map) {
+    const values = [
+      style.borderTopLeftRadius,
+      style.borderTopRightRadius,
+      style.borderBottomRightRadius,
+      style.borderBottomLeftRadius
+    ].map(parsePx).filter(n => n > 0);
+    if (!values.length) return 0;
+    return (values.reduce((a, b) => a + b, 0) / values.length) * ((map.scaleX + map.scaleY) / 2);
+  }
+
+  function drawElementBox(ctx, element, map, targetWidth, targetHeight) {
+    if (!isActuallyVisible(element)) return;
+    const rect = rectToPage(element.getBoundingClientRect(), map);
+    if (!intersectsPage(rect, targetWidth, targetHeight)) return;
+
+    const style = getComputedStyle(element);
+    const bg = parseCssColor(style.backgroundColor);
+    const radius = averageRadiusPx(style, map);
+
+    if (bg) {
+      ctx.save();
+      roundedRectPath(ctx, rect.x, rect.y, rect.width, rect.height, radius);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawBorders(ctx, rect, style, map, radius);
+  }
+
+  function drawBorders(ctx, rect, style, map, radius) {
+    const sides = [
+      ["Top", rect.x, rect.y, rect.width, 0],
+      ["Right", rect.x + rect.width, rect.y, 0, rect.height],
+      ["Bottom", rect.x, rect.y + rect.height, rect.width, 0],
+      ["Left", rect.x, rect.y, 0, rect.height]
+    ];
+
+    // Se todos os lados forem iguais, o contorno arredondado fica melhor.
+    const widths = sides.map(([side]) => parsePx(style[`border${side}Width`]));
+    const styles = sides.map(([side]) => style[`border${side}Style`]);
+    const colors = sides.map(([side]) => parseCssColor(style[`border${side}Color`]));
+    const same = widths.every(w => Math.abs(w - widths[0]) < 0.01) && colors.every(c => c === colors[0]) && styles.every(s => s === styles[0]);
+
+    if (same && widths[0] > 0 && styles[0] !== "none" && colors[0]) {
+      ctx.save();
+      roundedRectPath(ctx, rect.x, rect.y, rect.width, rect.height, radius);
+      ctx.lineWidth = widths[0] * ((map.scaleX + map.scaleY) / 2);
+      ctx.strokeStyle = colors[0];
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    sides.forEach(([side, x, y, width, height], index) => {
+      const borderWidth = widths[index] * (side === "Top" || side === "Bottom" ? map.scaleY : map.scaleX);
+      const borderStyle = styles[index];
+      const color = colors[index];
+      if (!borderWidth || borderStyle === "none" || !color) return;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = borderWidth;
+      ctx.beginPath();
+      if (width) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + width, y);
+      } else {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + height);
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  function drawSheetPseudoBorder(ctx, page, map) {
+    // Reproduz .sheet::before sem depender de pseudo-elemento no canvas.
+    const style = getComputedStyle(page);
+    const borderColor = parseCssColor(style.getPropertyValue("--pdf-primary-soft")) || "#ead1d6";
+    const insetMm = 10;
+    const borderMm = 1.2;
+    const radiusMm = 4;
+    const pageW = DEFAULT_PAGE_WIDTH_PX;
+    const pageH = DEFAULT_PAGE_HEIGHT_PX;
+    const pxPerMmX = pageW / PAGE_WIDTH_MM;
+    const pxPerMmY = pageH / PAGE_HEIGHT_MM;
+    const x = insetMm * pxPerMmX;
+    const y = insetMm * pxPerMmY;
+    const w = pageW - x * 2;
+    const h = pageH - y * 2;
+    ctx.save();
+    roundedRectPath(ctx, x, y, w, h, radiusMm * ((pxPerMmX + pxPerMmY) / 2));
+    ctx.lineWidth = borderMm * ((pxPerMmX + pxPerMmY) / 2);
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  async function fetchAsDataUrl(url) {
+    const absolute = new URL(url, document.baseURI).href;
+    if (imageCache.has(absolute)) return imageCache.get(absolute);
+    const response = await fetch(absolute, { mode: "cors", credentials: "omit", cache: "force-cache" });
+    if (!response.ok) throw new Error("Falha ao baixar imagem");
+    const dataUrl = await blobToDataUrl(await response.blob());
+    imageCache.set(absolute, dataUrl);
+    return dataUrl;
+  }
+
+  function isLogo(img) {
+    const className = String((img.className && img.className.baseVal) || img.className || "");
+    const alt = String(img.getAttribute("alt") || "");
+    const src = String(img.currentSrc || img.getAttribute("src") || "");
+    return /\b(pdf-logo|pdf-page-logo)\b/i.test(className) || /logotipo|bouquet\s*flores/i.test(alt) || /logo_bouquet_flores/i.test(src);
+  }
+
+  async function safeImageForCanvas(img) {
+    const rawSrc = img.currentSrc || img.getAttribute("src") || "";
+    if (!rawSrc) return await loadImage(BLANK_IMAGE);
+
+    const key = `${rawSrc}|${isLogo(img) ? "logo" : "photo"}`;
+    if (imageCache.has(key)) return await loadImage(imageCache.get(key));
+
+    let dataUrl;
     try {
-      const image = await loadImage(dataUrl);
+      dataUrl = /^data:/i.test(rawSrc) ? rawSrc : await fetchAsDataUrl(rawSrc);
+    } catch (error) {
+      dataUrl = BLANK_IMAGE;
+    }
+
+    const preserveAlpha = isLogo(img);
+    const maxSide = preserveAlpha ? 2200 : 1800;
+    const out = await normalizeImageDataUrl(dataUrl, { preserveAlpha, maxSide });
+    imageCache.set(key, out);
+    return await loadImage(out);
+  }
+
+  async function normalizeImageDataUrl(dataUrl, { preserveAlpha = false, maxSide = 1800 } = {}) {
+    try {
+      const image = await loadImage(/^data:image\//i.test(dataUrl) ? dataUrl : BLANK_IMAGE);
       const width = image.naturalWidth || image.width || 1;
       const height = image.naturalHeight || image.height || 1;
       const longest = Math.max(width, height);
       const ratio = Math.min(1, maxSide / longest);
-
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(width * ratio));
       canvas.height = Math.max(1, Math.round(height * ratio));
       const ctx = canvas.getContext("2d", { alpha: preserveAlpha });
-
       if (!preserveAlpha) {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       } else {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
-
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return preserveAlpha
-        ? canvas.toDataURL("image/png")
-        : canvas.toDataURL("image/jpeg", quality);
+      return preserveAlpha ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
     } catch (error) {
       return BLANK_IMAGE;
     }
   }
 
-  async function compressImageDataUrl(dataUrl, { maxSide = 1600, quality = 0.88, preserveAlpha = false } = {}) {
-    // Fotos comuns viram JPEG para reduzir tamanho e padronizar formato.
-    // Logotipos preservam PNG/transparência para não aparecerem com fundo branco.
-    return rasterizeImageDataUrl(dataUrl, { maxSide, quality, preserveAlpha });
+  function parseObjectPosition(value) {
+    const text = String(value || "50% 50%").trim().toLowerCase();
+    const parts = text.split(/\s+/);
+    const parseOne = (part, axis) => {
+      if (!part) return 0.5;
+      if (part === "left" || part === "top") return 0;
+      if (part === "right" || part === "bottom") return 1;
+      if (part === "center") return 0.5;
+      if (/%$/.test(part)) return clamp(parseFloat(part) / 100, 0, 1);
+      return axis === "x" ? 0.5 : 0.5;
+    };
+    return { x: parseOne(parts[0], "x"), y: parseOne(parts[1] || parts[0], "y") };
   }
 
+  function clipRounded(ctx, rect, radius) {
+    roundedRectPath(ctx, rect.x, rect.y, rect.width, rect.height, radius);
+    ctx.clip();
+  }
 
-  async function fetchImageAsDataUrl(src) {
-    const absoluteUrl = new URL(src, document.baseURI).href;
-    const response = await fetch(absoluteUrl, {
-      mode: "cors",
-      credentials: "omit",
-      cache: "force-cache"
+  async function drawImageElement(ctx, img, map, targetWidth, targetHeight) {
+    if (!isActuallyVisible(img)) return;
+    const rect = rectToPage(img.getBoundingClientRect(), map);
+    if (!intersectsPage(rect, targetWidth, targetHeight)) return;
+
+    const style = getComputedStyle(img);
+    const image = await safeImageForCanvas(img);
+    const naturalW = image.naturalWidth || image.width || 1;
+    const naturalH = image.naturalHeight || image.height || 1;
+    const fit = style.objectFit || "fill";
+    const pos = parseObjectPosition(style.objectPosition);
+    let sx = 0, sy = 0, sw = naturalW, sh = naturalH;
+    let dx = rect.x, dy = rect.y, dw = rect.width, dh = rect.height;
+
+    if (fit === "cover" || fit === "contain") {
+      const scale = fit === "cover"
+        ? Math.max(rect.width / naturalW, rect.height / naturalH)
+        : Math.min(rect.width / naturalW, rect.height / naturalH);
+      const drawW = naturalW * scale;
+      const drawH = naturalH * scale;
+      if (fit === "cover") {
+        sw = rect.width / scale;
+        sh = rect.height / scale;
+        sx = (naturalW - sw) * pos.x;
+        sy = (naturalH - sh) * pos.y;
+      } else {
+        dw = drawW;
+        dh = drawH;
+        dx = rect.x + (rect.width - drawW) * pos.x;
+        dy = rect.y + (rect.height - drawH) * pos.y;
+      }
+    }
+
+    ctx.save();
+    clipRounded(ctx, rect, averageRadiusPx(style, map));
+    ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+  }
+
+  function nodeIsInsideImage(node) {
+    let current = node && node.parentElement;
+    while (current) {
+      if (current.tagName && current.tagName.toLowerCase() === "img") return true;
+      current = current.parentElement;
+    }
+    return false;
+  }
+
+  function visibleTextNodes(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.replace(/\s+/g, "").length) return NodeFilter.FILTER_REJECT;
+        if (nodeIsInsideImage(node)) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent || !isActuallyVisible(parent)) return NodeFilter.FILTER_REJECT;
+        const style = getComputedStyle(parent);
+        const color = parseCssColor(style.color);
+        if (!color) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
     });
-    if (!response.ok) throw new Error("Falha ao baixar imagem");
-    return blobToDataUrl(await response.blob());
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    return nodes;
   }
 
-  async function imageElementToDataUrl(img) {
+  function textFont(style) {
+    const fontStyle = style.fontStyle || "normal";
+    const fontVariant = style.fontVariant || "normal";
+    const fontWeight = style.fontWeight || "400";
+    const fontSize = style.fontSize || "16px";
+    const fontFamily = style.fontFamily || "Arial, sans-serif";
+    return `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize} ${fontFamily}`;
+  }
+
+  function groupTextNodeByRenderedLine(node) {
+    const text = node.nodeValue || "";
+    const range = document.createRange();
+    const groups = [];
+    let current = null;
+    let lastHadRect = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rects = Array.from(range.getClientRects()).filter(r => r.width || r.height);
+      const rect = rects[0] || null;
+      const char = text[i];
+
+      if (!rect) {
+        if (current && /\s/.test(char)) current.text += char;
+        lastHadRect = false;
+        continue;
+      }
+
+      const topKey = Math.round(rect.top * 2) / 2;
+      if (!current || Math.abs(current.topKey - topKey) > 1.2 || (!lastHadRect && !/\s/.test(char))) {
+        current = {
+          text: "",
+          rects: [],
+          topKey
+        };
+        groups.push(current);
+      }
+
+      current.text += char;
+      current.rects.push(rect);
+      lastHadRect = true;
+    }
+
+    range.detach();
+    return groups.map(group => {
+      const left = Math.min(...group.rects.map(r => r.left));
+      const top = Math.min(...group.rects.map(r => r.top));
+      const right = Math.max(...group.rects.map(r => r.right));
+      const bottom = Math.max(...group.rects.map(r => r.bottom));
+      return {
+        text: group.text.replace(/\s+$/g, ""),
+        rect: { left, top, right, bottom, width: right - left, height: bottom - top }
+      };
+    }).filter(group => group.text.length);
+  }
+
+  function drawTextNode(ctx, node, map, targetWidth, targetHeight) {
+    const parent = node.parentElement;
+    if (!parent || !isActuallyVisible(parent)) return;
+    const style = getComputedStyle(parent);
+    const color = parseCssColor(style.color);
+    if (!color) return;
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = textFont(style);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = style.letterSpacing || "0px";
+
+    const fontSize = parsePx(style.fontSize) || 16;
+    const groups = groupTextNodeByRenderedLine(node);
+    for (const group of groups) {
+      const rect = rectToPage(group.rect, map);
+      if (!intersectsPage(rect, targetWidth, targetHeight)) continue;
+      const baseline = rect.y + rect.height - Math.max(1.5, fontSize * 0.16);
+      ctx.fillText(group.text, rect.x, baseline);
+    }
+    ctx.restore();
+  }
+
+  function collectElements(root) {
+    return [root, ...Array.from(root.querySelectorAll("*"))];
+  }
+
+  async function ensureFontsReady() {
+    if (!document.fonts || !document.fonts.ready) return;
     try {
-      const src = img.currentSrc || img.getAttribute("src") || "";
-      if (!src) return BLANK_IMAGE;
-
-      const preserveAlpha = isTransparentLogoImage(img);
-      const options = preserveAlpha
-        ? { maxSide: 2200, quality: 1, preserveAlpha: true }
-        : { maxSide: 1600, quality: 0.88, preserveAlpha: false };
-
-      if (/^data:/i.test(src)) {
-        return await compressImageDataUrl(src, options);
-      }
-
-      try {
-        return await compressImageDataUrl(await fetchImageAsDataUrl(src), options);
-      } catch (fetchError) {
-        // Última tentativa: usa a própria imagem já carregada na prévia.
-        // Se o navegador bloquear por CORS, a imagem é removida, mas a geração não para.
-        try {
-          const loaded = img.complete && img.naturalWidth ? img : await loadImage(src, { crossOrigin: "anonymous" });
-          const width = Math.max(1, loaded.naturalWidth || loaded.width || 1);
-          const height = Math.max(1, loaded.naturalHeight || loaded.height || 1);
-          const longest = Math.max(width, height);
-          const ratio = Math.min(1, (preserveAlpha ? 2200 : 1600) / longest);
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(width * ratio));
-          canvas.height = Math.max(1, Math.round(height * ratio));
-          const ctx = canvas.getContext("2d", { alpha: preserveAlpha });
-
-          if (!preserveAlpha) {
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-          } else {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-          }
-
-          ctx.drawImage(loaded, 0, 0, canvas.width, canvas.height);
-          return preserveAlpha
-            ? canvas.toDataURL("image/png")
-            : canvas.toDataURL("image/jpeg", 0.88);
-        } catch (canvasError) {
-          return BLANK_IMAGE;
-        }
-      }
+      await Promise.all([
+        document.fonts.load('400 18px "Clear Sans"', 'Orçamento Floral'),
+        document.fonts.load('400 42pt "Magnolia Script"', 'Inspirações'),
+        document.fonts.load('400 58pt "Gistesy"', 'Patricia Zeviani'),
+        document.fonts.load('400 32pt "Gistesy"', 'Bouquet Flores')
+      ]);
+      await document.fonts.ready;
     } catch (error) {
-      return BLANK_IMAGE;
+      // Se uma fonte não carregar, usamos o mesmo fallback que o navegador já usa na prévia.
     }
   }
 
+  async function renderPageToCanvas(page, options = {}) {
+    const targetWidth = Number(options.pageWidthPx) || DEFAULT_PAGE_WIDTH_PX;
+    const targetHeight = Number(options.pageHeightPx) || DEFAULT_PAGE_HEIGHT_PX;
+    const scale = Number(options.scale) || 1.6;
 
-  async function inlineImages(sourcePage, clonedPage) {
-    const sourceImages = Array.from(sourcePage.querySelectorAll("img"));
-    const clonedImages = Array.from(clonedPage.querySelectorAll("img"));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(targetWidth * scale);
+    canvas.height = Math.ceil(targetHeight * scale);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-    for (let index = 0; index < clonedImages.length; index += 1) {
-      const clonedImage = clonedImages[index];
-      const sourceImage = sourceImages[index] || clonedImage;
-      clonedImage.removeAttribute("srcset");
-      clonedImage.removeAttribute("sizes");
-      clonedImage.removeAttribute("loading");
-      clonedImage.removeAttribute("crossorigin");
-      clonedImage.setAttribute("src", await imageElementToDataUrl(sourceImage));
+    const map = getPageMapper(page, targetWidth, targetHeight);
+    const elements = collectElements(page).filter(isActuallyVisible);
+
+    // Fundo e bordas reais.
+    for (const element of elements) drawElementBox(ctx, element, map, targetWidth, targetHeight);
+    // Borda decorativa da folha, que vem de pseudo-elemento CSS.
+    drawSheetPseudoBorder(ctx, page, map);
+    // Imagens convertidas para data URL local antes de entrar no canvas.
+    for (const img of Array.from(page.querySelectorAll("img"))) {
+      await drawImageElement(ctx, img, map, targetWidth, targetHeight);
     }
+    // Textos na posição calculada pelo próprio layout da pré-visualização.
+    for (const node of visibleTextNodes(page)) drawTextNode(ctx, node, map, targetWidth, targetHeight);
+
+    return canvas;
   }
 
-  function sanitizeElementInlineStyles(root) {
-    const elements = [root, ...Array.from(root.querySelectorAll("*"))].filter(Boolean);
-    const urlStyleProperties = [
-      "backgroundImage",
-      "borderImageSource",
-      "listStyleImage",
-      "maskImage",
-      "webkitMaskImage",
-      "filter"
-    ];
-
-    for (const element of elements) {
-      if (element.hasAttribute && element.hasAttribute("style")) {
-        const styleText = element.getAttribute("style") || "";
-        if (/url\(/i.test(styleText)) {
-          element.setAttribute("style", sanitizeCssUrls(styleText));
-        }
-      }
-
-      if (element.style) {
-        for (const prop of urlStyleProperties) {
-          try {
-            if (element.style[prop] && /url\(/i.test(element.style[prop])) element.style[prop] = "none";
-          } catch (error) {
-            // Ignora propriedades não suportadas pelo navegador.
-          }
-        }
-      }
-    }
-  }
-
-  function removeUnsafeSvgImageReferences(root) {
-    for (const node of Array.from(root.querySelectorAll("image, use"))) {
-      const href = node.getAttribute("href") || node.getAttribute("xlink:href") || "";
-      if (href && !/^data:/i.test(href)) node.remove();
-    }
-  }
-
-  function makeExportPage(sourcePage) {
-    const clone = sourcePage.cloneNode(true);
-    clone.removeAttribute("id");
-    clone.classList.add("pdf-export-root");
-    clone.style.margin = "0";
-    clone.style.transform = "none";
-    clone.style.boxShadow = "none";
-    clone.style.width = "210mm";
-    clone.style.height = "297mm";
-    clone.style.minWidth = "210mm";
-    clone.style.maxWidth = "210mm";
-    clone.style.minHeight = "297mm";
-    clone.style.maxHeight = "297mm";
-    clone.style.overflow = "hidden";
-    return clone;
-  }
-
-  function serializePageForSvg(page) {
-    const clone = page.cloneNode(true);
-    clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-
-    // XMLSerializer fecha corretamente tags vazias como <img />, o que evita
-    // SVG inválido. Usar outerHTML direto pode gerar <img> sem fechamento e
-    // causar o erro genérico "Falha ao carregar imagem" ao renderizar a página.
-    return new XMLSerializer()
-      .serializeToString(clone)
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/&nbsp;/g, "&#160;");
-  }
-
-  function cdataCss(value) {
-    return String(value || "").replace(/]]>/g, "]]]]><![CDATA[>");
-  }
-
-  async function renderPageToCanvas(sourcePage, options, cssText) {
-    const pageWidthPx = Number(options.pageWidthPx) || 794;
-    const pageHeightPx = Number(options.pageHeightPx) || 1123;
-    const scale = Number(options.scale) || 1.55;
-
-    const clonedPage = makeExportPage(sourcePage);
-    await inlineImages(sourcePage, clonedPage);
-    sanitizeElementInlineStyles(clonedPage);
-    removeUnsafeSvgImageReferences(clonedPage);
-
-    const pageMarkup = serializePageForSvg(clonedPage);
-    const xhtml = `
-      <html xmlns="http://www.w3.org/1999/xhtml">
-        <head>
-          <meta charset="utf-8" />
-          <style type="text/css"><![CDATA[${cdataCss(cssText)}]]></style>
-        </head>
-        <body>${pageMarkup}</body>
-      </html>
-    `;
-
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${pageWidthPx}" height="${pageHeightPx}" viewBox="0 0 ${pageWidthPx} ${pageHeightPx}">
-        <foreignObject x="0" y="0" width="${pageWidthPx}" height="${pageHeightPx}">${xhtml}</foreignObject>
-      </svg>
-    `;
-
-    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(svgBlob);
-
-    try {
-      let image;
-      try {
-        image = await loadImage(url);
-      } catch (error) {
-        throw new Error("Falha ao renderizar a página do PDF a partir da pré-visualização");
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.ceil(pageWidthPx * scale));
-      canvas.height = Math.max(1, Math.ceil(pageHeightPx * scale));
-      const ctx = canvas.getContext("2d", { alpha: false });
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      ctx.drawImage(image, 0, 0, pageWidthPx, pageHeightPx);
-      return canvas;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  function canvasToJpegDataUrl(canvas, quality) {
-    try {
-      const dataUrl = canvas.toDataURL("image/jpeg", quality || 0.92);
-      if (!/^data:image\/jpeg;base64,/i.test(dataUrl)) {
-        throw new Error("Falha ao converter página para imagem do PDF");
-      }
-      return dataUrl;
-    } catch (error) {
-      if (/tainted|contamin/i.test(String(error && (error.message || error)))) {
-        const wrapped = new Error("O navegador bloqueou a exportação porque ainda havia recurso externo dentro da página do PDF.");
-        wrapped.code = "TAINTED_CANVAS";
-        throw wrapped;
-      }
-      throw error;
-    }
+  function canvasToJpegDataUrl(canvas, quality = 0.9) {
+    // Como não desenhamos SVG/foreignObject nem imagens externas diretamente,
+    // esse canvas permanece origin-clean no Android.
+    return canvas.toDataURL("image/jpeg", quality);
   }
 
   class LocalPdfDocument {
@@ -663,20 +574,15 @@
 
     outputBytes() {
       if (!this.pages.length) throw new Error("Nenhuma página foi enviada ao PDF");
-
       const parts = [];
       const offsets = [0];
-      const write = value => {
-        const bytes = value instanceof Uint8Array ? value : textEncoderBytes(String(value));
-        parts.push(bytes);
-      };
+      const write = value => parts.push(value instanceof Uint8Array ? value : textEncoderBytes(String(value)));
       const position = () => parts.reduce((sum, part) => sum + part.length, 0);
       const objects = [];
       const addObject = bodyParts => {
         objects.push(Array.isArray(bodyParts) ? bodyParts : [bodyParts]);
         return objects.length;
       };
-
       const catalogId = addObject("");
       const pagesId = addObject("");
       const kids = [];
@@ -688,7 +594,6 @@
           page.bytes,
           "\nendstream"
         ]);
-
         const x = page.x;
         const y = PAGE_HEIGHT_PT - page.y - page.height;
         const content = `q\n${page.width.toFixed(3)} 0 0 ${page.height.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm\n/${imageName} Do\nQ\n`;
@@ -698,7 +603,6 @@
           contentBytes,
           "\nendstream"
         ]);
-
         const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH_PT.toFixed(3)} ${PAGE_HEIGHT_PT.toFixed(3)}] /Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
         kids.push(`${pageId} 0 R`);
       });
@@ -713,15 +617,11 @@
         bodyParts.forEach(write);
         write("\nendobj\n");
       });
-
       const xrefOffset = position();
       write(`xref\n0 ${objects.length + 1}\n`);
       write("0000000000 65535 f \n");
-      for (let i = 1; i <= objects.length; i += 1) {
-        write(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
-      }
+      for (let i = 1; i <= objects.length; i += 1) write(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
       write(`trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
-
       return concatBytes(parts);
     }
 
@@ -734,67 +634,46 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     }
   }
 
-  async function renderWithScales(page, options, cssText) {
-    const scales = Array.isArray(options.scales) && options.scales.length ? options.scales : [1.55, 1.25, 1];
-    let lastError = null;
+  function chooseScales(options) {
+    const list = Array.isArray(options.scales) && options.scales.length ? options.scales : [1.6, 1.3, 1];
+    return list.map(Number).filter(n => Number.isFinite(n) && n > 0);
+  }
 
-    for (const scale of scales) {
+  async function renderPageWithScaleFallback(page, options) {
+    let lastError = null;
+    for (const scale of chooseScales(options)) {
       try {
-        return await renderPageToCanvas(page, { ...options, scale }, cssText);
+        return await renderPageToCanvas(page, { ...options, scale });
       } catch (error) {
         lastError = error;
       }
     }
-
-    throw lastError || new Error("Falha ao renderizar página");
+    throw lastError || new Error("Falha ao renderizar página do PDF");
   }
 
-  async function renderPdfWithCss(pages, preview, options, includeFonts) {
-    const cssText = await buildExportCss(preview, { includeFonts });
-    const pdf = new LocalPdfDocument();
+  async function downloadFromPreview(preview, options = {}) {
+    if (!preview) throw new Error("Pré-visualização não encontrada");
+    const selector = options.pageSelector || ".sheet";
+    const pages = Array.from(preview.querySelectorAll(selector));
+    if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
 
+    await ensureFontsReady();
+
+    const pdf = new LocalPdfDocument();
     for (const page of pages) {
-      const canvas = await renderWithScales(page, options, cssText);
+      const canvas = await renderPageWithScaleFallback(page, options);
       const jpeg = canvasToJpegDataUrl(canvas, 0.9);
       pdf.addPageImage(jpeg, 0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
       canvas.width = 1;
       canvas.height = 1;
     }
 
-    return pdf;
-  }
-
-  async function downloadFromPreview(preview, options = {}) {
-    if (!preview) throw new Error("Pré-visualização não encontrada");
-
-    const selector = options.pageSelector || ".sheet";
-    const pages = Array.from(preview.querySelectorAll(selector));
-    if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
-
-    await ensureDocumentFontsReady();
-
-    try {
-      const pdf = await renderPdfWithCss(pages, preview, options, true);
-      pdf.save(options.filename || "orcamento-floral.pdf");
-      return;
-    } catch (error) {
-      // Alguns navegadores Android bloqueiam canvas exportado quando o SVG
-      // interno contém @font-face embutido. A segunda tentativa remove apenas
-      // as declarações @font-face do SVG, mantendo a mesma pré-visualização e
-      // os mesmos elementos/páginas como fonte do PDF.
-      if (!error || error.code !== "TAINTED_CANVAS") throw error;
-    }
-
-    const pdf = await renderPdfWithCss(pages, preview, options, false);
     pdf.save(options.filename || "orcamento-floral.pdf");
   }
 
-
-  window.OrcamentoPdf = {
-    downloadFromPreview
-  };
+  window.OrcamentoPdf = { downloadFromPreview };
 }());
