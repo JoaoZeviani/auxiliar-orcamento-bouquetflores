@@ -276,8 +276,9 @@
     return chunks.join("\n");
   }
 
-  async function buildExportCss(preview) {
-    const fontCss = await collectFontCss();
+  async function buildExportCss(preview, options = {}) {
+    const includeFonts = options.includeFonts !== false;
+    const fontCss = includeFonts ? await collectFontCss() : "";
     const baseCss = await collectBaseCss();
     const vars = collectCssVariablesFrom(preview);
 
@@ -368,7 +369,24 @@
     });
   }
 
-  async function compressImageDataUrl(dataUrl, { maxSide = 1600, quality = 0.88 } = {}) {
+  function isTransparentLogoImage(img) {
+    if (!img || !img.getAttribute) return false;
+    const className = String(
+      (img.className && img.className.baseVal) || img.className || ""
+    );
+    const alt = String(img.getAttribute("alt") || "");
+    const src = String(img.currentSrc || img.getAttribute("src") || "");
+
+    return /\b(pdf-logo|pdf-page-logo)\b/i.test(className)
+      || /logotipo|bouquet\s*flores/i.test(alt)
+      || /logo_bouquet_flores/i.test(src);
+  }
+
+  async function rasterizeImageDataUrl(dataUrl, {
+    maxSide = 1600,
+    quality = 0.88,
+    preserveAlpha = false
+  } = {}) {
     if (!/^data:image\//i.test(String(dataUrl || ""))) return BLANK_IMAGE;
 
     try {
@@ -381,18 +399,30 @@
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(width * ratio));
       canvas.height = Math.max(1, Math.round(height * ratio));
-      const ctx = canvas.getContext("2d", { alpha: false });
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext("2d", { alpha: preserveAlpha });
 
-      // Sempre convertemos para JPEG. Isso elimina variações de PNG/WebP/GIF
-      // e evita que um formato específico derrube o SVG/canvas usado no PDF.
-      return canvas.toDataURL("image/jpeg", quality);
+      if (!preserveAlpha) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return preserveAlpha
+        ? canvas.toDataURL("image/png")
+        : canvas.toDataURL("image/jpeg", quality);
     } catch (error) {
       return BLANK_IMAGE;
     }
   }
+
+  async function compressImageDataUrl(dataUrl, { maxSide = 1600, quality = 0.88, preserveAlpha = false } = {}) {
+    // Fotos comuns viram JPEG para reduzir tamanho e padronizar formato.
+    // Logotipos preservam PNG/transparência para não aparecerem com fundo branco.
+    return rasterizeImageDataUrl(dataUrl, { maxSide, quality, preserveAlpha });
+  }
+
 
   async function fetchImageAsDataUrl(src) {
     const absoluteUrl = new URL(src, document.baseURI).href;
@@ -410,29 +440,42 @@
       const src = img.currentSrc || img.getAttribute("src") || "";
       if (!src) return BLANK_IMAGE;
 
+      const preserveAlpha = isTransparentLogoImage(img);
+      const options = preserveAlpha
+        ? { maxSide: 2200, quality: 1, preserveAlpha: true }
+        : { maxSide: 1600, quality: 0.88, preserveAlpha: false };
+
       if (/^data:/i.test(src)) {
-        return await compressImageDataUrl(src);
+        return await compressImageDataUrl(src, options);
       }
 
       try {
-        return await compressImageDataUrl(await fetchImageAsDataUrl(src));
+        return await compressImageDataUrl(await fetchImageAsDataUrl(src), options);
       } catch (fetchError) {
         // Última tentativa: usa a própria imagem já carregada na prévia.
-        // Pode falhar por CORS; nesse caso removemos a imagem em vez de abortar o PDF.
+        // Se o navegador bloquear por CORS, a imagem é removida, mas a geração não para.
         try {
           const loaded = img.complete && img.naturalWidth ? img : await loadImage(src, { crossOrigin: "anonymous" });
-          const canvas = document.createElement("canvas");
           const width = Math.max(1, loaded.naturalWidth || loaded.width || 1);
           const height = Math.max(1, loaded.naturalHeight || loaded.height || 1);
           const longest = Math.max(width, height);
-          const ratio = Math.min(1, 1600 / longest);
+          const ratio = Math.min(1, (preserveAlpha ? 2200 : 1600) / longest);
+          const canvas = document.createElement("canvas");
           canvas.width = Math.max(1, Math.round(width * ratio));
           canvas.height = Math.max(1, Math.round(height * ratio));
-          const ctx = canvas.getContext("2d", { alpha: false });
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const ctx = canvas.getContext("2d", { alpha: preserveAlpha });
+
+          if (!preserveAlpha) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+
           ctx.drawImage(loaded, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL("image/jpeg", 0.88);
+          return preserveAlpha
+            ? canvas.toDataURL("image/png")
+            : canvas.toDataURL("image/jpeg", 0.88);
         } catch (canvasError) {
           return BLANK_IMAGE;
         }
@@ -441,6 +484,7 @@
       return BLANK_IMAGE;
     }
   }
+
 
   async function inlineImages(sourcePage, clonedPage) {
     const sourceImages = Array.from(sourcePage.querySelectorAll("img"));
@@ -589,7 +633,9 @@
       return dataUrl;
     } catch (error) {
       if (/tainted|contamin/i.test(String(error && (error.message || error)))) {
-        throw new Error("O navegador bloqueou a exportação porque ainda havia recurso externo dentro da página do PDF. Atualize o arquivo pdf-local.js e recarregue a página com Ctrl+F5.");
+        const wrapped = new Error("O navegador bloqueou a exportação porque ainda havia recurso externo dentro da página do PDF.");
+        wrapped.code = "TAINTED_CANVAS";
+        throw wrapped;
       }
       throw error;
     }
@@ -707,15 +753,8 @@
     throw lastError || new Error("Falha ao renderizar página");
   }
 
-  async function downloadFromPreview(preview, options = {}) {
-    if (!preview) throw new Error("Pré-visualização não encontrada");
-
-    const selector = options.pageSelector || ".sheet";
-    const pages = Array.from(preview.querySelectorAll(selector));
-    if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
-
-    await ensureDocumentFontsReady();
-    const cssText = await buildExportCss(preview);
+  async function renderPdfWithCss(pages, preview, options, includeFonts) {
+    const cssText = await buildExportCss(preview, { includeFonts });
     const pdf = new LocalPdfDocument();
 
     for (const page of pages) {
@@ -726,8 +765,34 @@
       canvas.height = 1;
     }
 
+    return pdf;
+  }
+
+  async function downloadFromPreview(preview, options = {}) {
+    if (!preview) throw new Error("Pré-visualização não encontrada");
+
+    const selector = options.pageSelector || ".sheet";
+    const pages = Array.from(preview.querySelectorAll(selector));
+    if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
+
+    await ensureDocumentFontsReady();
+
+    try {
+      const pdf = await renderPdfWithCss(pages, preview, options, true);
+      pdf.save(options.filename || "orcamento-floral.pdf");
+      return;
+    } catch (error) {
+      // Alguns navegadores Android bloqueiam canvas exportado quando o SVG
+      // interno contém @font-face embutido. A segunda tentativa remove apenas
+      // as declarações @font-face do SVG, mantendo a mesma pré-visualização e
+      // os mesmos elementos/páginas como fonte do PDF.
+      if (!error || error.code !== "TAINTED_CANVAS") throw error;
+    }
+
+    const pdf = await renderPdfWithCss(pages, preview, options, false);
     pdf.save(options.filename || "orcamento-floral.pdf");
   }
+
 
   window.OrcamentoPdf = {
     downloadFromPreview

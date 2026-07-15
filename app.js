@@ -371,7 +371,7 @@ async function downloadPdf() {
     await loadPdfLibrary();
   } catch (error) {
     console.error(error);
-    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo pdf-local.js foi enviado para o GitHub junto com os demais arquivos.");
+    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo pdf-local.js está na raiz do projeto e abra o app novamente.");
     return;
   }
 
@@ -391,7 +391,7 @@ async function downloadPdf() {
     });
   } catch (error) {
     console.error(error);
-    alert(`Não foi possível baixar o PDF. Atualize também o arquivo pdf-local.js e tente novamente.
+    alert(`Não foi possível baixar o PDF.
 
 Detalhe: ${error.message || error}`);
   } finally {
