@@ -1,6 +1,5 @@
 /* Gerador local de PDF para o Auxiliar de Orçamento Floral.
-   O download é feito a partir das folhas já renderizadas na pré-visualização,
-   para manter o PDF final visualmente fiel ao que aparece na tela. */
+   O PDF é gerado exclusivamente a partir das folhas já renderizadas na pré-visualização. */
 (function () {
   "use strict";
 
@@ -10,6 +9,7 @@
   const PAGE_WIDTH_PT = PAGE_WIDTH_MM * MM_TO_PT;
   const PAGE_HEIGHT_PT = PAGE_HEIGHT_MM * MM_TO_PT;
   const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+  let cachedBaseCss = null;
 
   function textEncoderBytes(text) {
     const value = String(text || "");
@@ -69,21 +69,89 @@
     return { width: 1, height: 1 };
   }
 
-  function collectCssText() {
+  function stripUnsafeCss(cssText) {
+    return String(cssText || "")
+      .replace(/@charset[^;]+;/gi, "")
+      .replace(/@import[^;]+;/gi, "")
+      .replace(/@font-face\s*\{[^}]*url\([^}]+\}/gi, "")
+      .replace(/url\(\s*['\"]?https?:\/\/[^)]+\)/gi, "none");
+  }
+
+  function cssRuleText(rule) {
+    const text = rule && rule.cssText ? String(rule.cssText) : "";
+    if (!text) return "";
+    if (/^\s*@import\b/i.test(text)) return "";
+    if (/^\s*@charset\b/i.test(text)) return "";
+    if (/^\s*@font-face\b/i.test(text) && /url\(/i.test(text)) return "";
+    return stripUnsafeCss(text);
+  }
+
+  function collectCssFromCssom() {
     const chunks = [];
 
-    for (const sheet of Array.from(document.styleSheets)) {
+    for (const sheet of Array.from(document.styleSheets || [])) {
       try {
         for (const rule of Array.from(sheet.cssRules || [])) {
-          chunks.push(rule.cssText);
+          const text = cssRuleText(rule);
+          if (text) chunks.push(text);
         }
       } catch (error) {
-        // Folhas externas que o navegador não permite ler são ignoradas.
-        // As regras principais do PDF ficam no style.css do próprio projeto.
+        // Alguns @imports externos deixam a folha inacessível. Nesse caso,
+        // o fallback é buscar style.css diretamente abaixo.
       }
     }
 
-    chunks.push(`
+    return chunks.join("\n");
+  }
+
+  async function collectBaseCss() {
+    if (cachedBaseCss) return cachedBaseCss;
+
+    let css = "";
+    try {
+      const response = await fetch(new URL("style.css", document.baseURI).href, { cache: "force-cache" });
+      if (response.ok) css = await response.text();
+    } catch (error) {
+      css = "";
+    }
+
+    if (!css.trim()) {
+      css = collectCssFromCssom();
+    }
+
+    cachedBaseCss = stripUnsafeCss(css);
+    return cachedBaseCss;
+  }
+
+  function collectCssVariablesFrom(element) {
+    const chunks = [];
+    const styles = [
+      getComputedStyle(document.documentElement),
+      element ? getComputedStyle(element) : null
+    ].filter(Boolean);
+
+    styles.forEach(style => {
+      for (let i = 0; i < style.length; i += 1) {
+        const prop = style[i];
+        if (prop && prop.startsWith("--")) {
+          const value = style.getPropertyValue(prop).trim();
+          if (value) chunks.push(`${prop}: ${value};`);
+        }
+      }
+    });
+
+    return chunks.join("\n");
+  }
+
+  async function buildExportCss(preview) {
+    const baseCss = await collectBaseCss();
+    const vars = collectCssVariablesFrom(preview);
+
+    return `
+      ${baseCss}
+      :root, html, body, .pdf-export-root {
+        ${vars}
+      }
       html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -92,7 +160,12 @@
         overflow: hidden !important;
         background: #ffffff !important;
       }
-      *, *::before, *::after { box-sizing: border-box !important; }
+      body {
+        display: block !important;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+      }
       .sheet {
         position: relative !important;
         display: block !important;
@@ -105,6 +178,8 @@
         margin: 0 !important;
         transform: none !important;
         box-shadow: none !important;
+        overflow: hidden !important;
+        page-break-after: always !important;
       }
       .sheet-frame,
       .pdf-document,
@@ -112,10 +187,10 @@
         transform: none !important;
         overflow: visible !important;
       }
-      .topbar, .editor, .no-print, dialog { display: none !important; }
-    `);
-
-    return chunks.join("\n");
+      .topbar, .editor, .no-print, dialog {
+        display: none !important;
+      }
+    `;
   }
 
   function blobToDataUrl(blob) {
@@ -138,7 +213,7 @@
     });
   }
 
-  async function compressImageDataUrl(dataUrl, { maxSide = 1800, quality = 0.9 } = {}) {
+  async function compressImageDataUrl(dataUrl, { maxSide = 1600, quality = 0.88 } = {}) {
     if (!/^data:image\//i.test(String(dataUrl || ""))) return dataUrl;
 
     const image = await loadImage(dataUrl);
@@ -146,7 +221,7 @@
     const height = image.naturalHeight || image.height || 1;
     const longest = Math.max(width, height);
 
-    if (longest <= maxSide && String(dataUrl).length < 1300000) {
+    if (longest <= maxSide && String(dataUrl).length < 1000000) {
       return dataUrl;
     }
 
@@ -183,8 +258,6 @@
     try {
       return await compressImageDataUrl(await fetchImageAsDataUrl(src));
     } catch (fetchError) {
-      // Última tentativa: se a imagem já estiver no DOM e o navegador permitir,
-      // desenha em canvas. Se o canvas ficar bloqueado por CORS, cai no pixel transparente.
       try {
         const loaded = img.complete && img.naturalWidth ? img : await loadImage(src, { crossOrigin: "anonymous" });
         const canvas = document.createElement("canvas");
@@ -194,7 +267,7 @@
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(loaded, 0, 0);
-        return await compressImageDataUrl(canvas.toDataURL("image/jpeg", 0.9));
+        return await compressImageDataUrl(canvas.toDataURL("image/jpeg", 0.88));
       } catch (canvasError) {
         return TRANSPARENT_PIXEL;
       }
@@ -205,18 +278,21 @@
     const sourceImages = Array.from(sourcePage.querySelectorAll("img"));
     const clonedImages = Array.from(clonedPage.querySelectorAll("img"));
 
-    await Promise.all(clonedImages.map(async (clonedImage, index) => {
+    for (let index = 0; index < clonedImages.length; index += 1) {
+      const clonedImage = clonedImages[index];
       const sourceImage = sourceImages[index] || clonedImage;
       clonedImage.removeAttribute("srcset");
       clonedImage.removeAttribute("sizes");
+      clonedImage.removeAttribute("loading");
       clonedImage.setAttribute("crossorigin", "anonymous");
       clonedImage.setAttribute("src", await imageElementToDataUrl(sourceImage));
-    }));
+    }
   }
 
   function makeExportPage(sourcePage) {
     const clone = sourcePage.cloneNode(true);
     clone.removeAttribute("id");
+    clone.classList.add("pdf-export-root");
     clone.style.margin = "0";
     clone.style.transform = "none";
     clone.style.boxShadow = "none";
@@ -230,23 +306,29 @@
     return clone;
   }
 
-  async function renderPageToCanvas(sourcePage, options) {
+  function normalizeSvgText(value) {
+    return String(value || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/&nbsp;/g, "&#160;");
+  }
+
+  async function renderPageToCanvas(sourcePage, options, cssText) {
     const pageWidthPx = Number(options.pageWidthPx) || 794;
     const pageHeightPx = Number(options.pageHeightPx) || 1123;
-    const scale = Number(options.scale) || 2;
+    const scale = Number(options.scale) || 1.55;
 
     const clonedPage = makeExportPage(sourcePage);
     await inlineImages(sourcePage, clonedPage);
 
-    const xhtml = `
+    const xhtml = normalizeSvgText(`
       <html xmlns="http://www.w3.org/1999/xhtml">
         <head>
           <meta charset="utf-8" />
-          <style>${collectCssText()}</style>
+          <style><![CDATA[${String(cssText).replace(/\]\]>/g, "]] ]>")}]]></style>
         </head>
         <body>${clonedPage.outerHTML}</body>
       </html>
-    `;
+    `);
 
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${pageWidthPx}" height="${pageHeightPx}" viewBox="0 0 ${pageWidthPx} ${pageHeightPx}">
@@ -378,13 +460,13 @@
     }
   }
 
-  async function renderWithFallbackScales(page, options) {
-    const scales = Array.isArray(options.scales) && options.scales.length ? options.scales : [2, 1.5, 1.25, 1];
+  async function renderWithScales(page, options, cssText) {
+    const scales = Array.isArray(options.scales) && options.scales.length ? options.scales : [1.55, 1.25, 1];
     let lastError = null;
 
     for (const scale of scales) {
       try {
-        return await renderPageToCanvas(page, { ...options, scale });
+        return await renderPageToCanvas(page, { ...options, scale }, cssText);
       } catch (error) {
         lastError = error;
       }
@@ -400,11 +482,12 @@
     const pages = Array.from(preview.querySelectorAll(selector));
     if (!pages.length) throw new Error("Nenhuma página encontrada na pré-visualização");
 
+    const cssText = await buildExportCss(preview);
     const pdf = new LocalPdfDocument();
 
     for (const page of pages) {
-      const canvas = await renderWithFallbackScales(page, options);
-      const jpeg = canvasToJpegDataUrl(canvas, 0.92);
+      const canvas = await renderWithScales(page, options, cssText);
+      const jpeg = canvasToJpegDataUrl(canvas, 0.9);
       pdf.addPageImage(jpeg, 0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
       canvas.width = 1;
       canvas.height = 1;
@@ -416,10 +499,4 @@
   window.OrcamentoPdf = {
     downloadFromPreview
   };
-
-  // Compatibilidade com código antigo, caso algum arquivo não tenha sido substituído.
-  window.html2canvas = window.html2canvas || function (element, options) {
-    return renderWithFallbackScales(element, options || {});
-  };
-  window.jspdf = window.jspdf || {};
 }());

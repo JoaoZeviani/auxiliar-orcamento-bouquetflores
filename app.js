@@ -387,17 +387,13 @@ async function downloadPdf() {
       pageSelector: ".sheet",
       pageWidthPx: 794,
       pageHeightPx: 1123,
-      scales: [2, 1.5, 1.25, 1]
+      scales: [1.55, 1.25, 1]
     });
   } catch (error) {
     console.error(error);
-    try {
-      openPrintableFallbackWindow();
-      alert("Não consegui concluir o download automático neste navegador. Abri uma versão alternativa com a mesma pré-visualização para salvar como PDF.");
-    } catch (fallbackError) {
-      console.error(fallbackError);
-      alert(`Não foi possível baixar o PDF. Confira se o arquivo assets/pdf-local.js foi atualizado junto com o app.js e tente novamente.\n\nDetalhe: ${error.message || error}`);
-    }
+    alert(`Não foi possível baixar o PDF. Atualize também o arquivo assets/pdf-local.js e tente novamente.
+
+Detalhe: ${error.message || error}`);
   } finally {
     document.body.classList.remove("is-downloading-pdf");
     els.btnDownloadPdf.disabled = false;
@@ -427,16 +423,6 @@ async function waitForPreviewAssets() {
     image.addEventListener("load", done, { once: true });
     image.addEventListener("error", done, { once: true });
   })));
-}
-
-function openPrintableFallbackWindow() {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (!printWindow) throw new Error("Não foi possível abrir janela alternativa");
-
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escapeHtml(buildPdfFileName())}</title><link rel="stylesheet" href="style.css"><style>body{background:#fff!important}.topbar,.editor,.no-print,dialog{display:none!important}.preview-wrap{display:block!important;overflow:visible!important;padding:0!important}.pdf-document{transform:none!important}.sheet-frame{width:auto!important;height:auto!important}.sheet{margin:0 auto 0!important;box-shadow:none!important;transform:none!important}@media print{.sheet{page-break-after:always}}</style></head><body>${els.preview.outerHTML}<script>setTimeout(()=>window.print(),500)<\/script></body></html>`;
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
 }
 
 function renderEditor() {
