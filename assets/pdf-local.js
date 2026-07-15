@@ -65,7 +65,9 @@
     for (const sheet of Array.from(document.styleSheets)) {
       try {
         for (const rule of Array.from(sheet.cssRules || [])) {
-          chunks.push(rule.cssText);
+          const cssText = rule.cssText || "";
+          if (/^@import/i.test(cssText.trim())) continue;
+          chunks.push(cssText);
         }
       } catch (error) {
         // Folhas externas sem permissão de leitura são ignoradas.
@@ -76,6 +78,8 @@
       html, body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
       body { width: 100% !important; min-width: 0 !important; overflow: hidden !important; }
       .sheet { margin: 0 !important; box-shadow: none !important; transform: none !important; }
+      .sheet-frame { width: 210mm !important; height: 297mm !important; overflow: hidden !important; }
+      img { max-width: 100%; }
       .no-print, dialog { display: none !important; }
     `);
 

@@ -375,21 +375,45 @@ async function downloadPdf() {
     return;
   }
 
+  if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
+    alert("Não foi possível carregar o gerador de PDF local. Confira se o arquivo assets/pdf-local.js foi enviado para o GitHub junto com os demais arquivos.");
+    return;
+  }
+
   const originalText = els.btnDownloadPdf.textContent;
   els.btnDownloadPdf.disabled = true;
   els.btnDownloadPdf.textContent = "Gerando PDF...";
   document.body.classList.add("is-downloading-pdf");
 
   try {
-    await downloadPdfDirectlyFromState();
+    await waitForPreviewImages();
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const sheets = Array.from(els.preview.querySelectorAll(".sheet"));
+
+    if (!sheets.length) throw new Error("Nenhuma página encontrada na pré-visualização.");
+
+    for (let index = 0; index < sheets.length; index += 1) {
+      const sheet = sheets[index];
+      setStatus(`Gerando PDF (${index + 1}/${sheets.length})...`);
+
+      const canvas = await capturePreviewSheet(sheet);
+      const imageData = canvasToJpegDataUrl(canvas);
+
+      if (index > 0) pdf.addPage("a4", "portrait");
+      pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
+    }
+
+    pdf.save(`${buildPdfFileName()}.pdf`);
+    setStatus("PDF baixado.");
   } catch (error) {
     console.error(error);
-    try {
-      openPrintableFallbackWindow();
-      alert("Não foi possível baixar automaticamente neste navegador, então abri uma versão de impressão como alternativa. Use Salvar como PDF nessa janela.");
-    } catch (fallbackError) {
-      console.error(fallbackError);
-      alert(`Não foi possível baixar o PDF. Atualize todos os arquivos do projeto no GitHub e tente novamente.\n\nDetalhe: ${error.message || error}`);
+    const opened = openPrintableFallback();
+    if (opened) {
+      alert("Não foi possível baixar automaticamente neste navegador, então abri uma versão fiel da pré-visualização. Use Salvar como PDF nessa janela.");
+    } else {
+      alert(`Não foi possível baixar o PDF automaticamente. A pré-visualização continua fiel ao PDF; tente reduzir a quantidade/tamanho das imagens ou atualizar os arquivos do projeto.\n\nDetalhe: ${error.message || error}`);
     }
   } finally {
     document.body.classList.remove("is-downloading-pdf");
@@ -398,600 +422,118 @@ async function downloadPdf() {
   }
 }
 
+async function capturePreviewSheet(sheet) {
+  const width = Math.max(1, Math.ceil(sheet.scrollWidth || sheet.getBoundingClientRect().width || 794));
+  const height = Math.max(1, Math.ceil(sheet.scrollHeight || sheet.getBoundingClientRect().height || 1123));
+  const scales = [1.75, 1.35, 1, 0.82];
+  let lastError = null;
+
+  for (const scale of scales) {
+    try {
+      const canvas = await window.html2canvas(sheet, {
+        scale,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: width,
+        windowHeight: height
+      });
+
+      if (!canvas || !canvas.width || !canvas.height) {
+        throw new Error("Canvas vazio ao gerar página.");
+      }
+
+      return canvas;
+    } catch (error) {
+      lastError = error;
+      await delay(120);
+    }
+  }
+
+  throw lastError || new Error("Falha ao capturar a página da pré-visualização.");
+}
+
+function canvasToJpegDataUrl(canvas) {
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
+  if (/^data:image\/jpe?g/i.test(dataUrl)) return dataUrl;
+
+  const flattened = document.createElement("canvas");
+  flattened.width = canvas.width;
+  flattened.height = canvas.height;
+  const ctx = flattened.getContext("2d", { alpha: false });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, flattened.width, flattened.height);
+  ctx.drawImage(canvas, 0, 0);
+  return flattened.toDataURL("image/jpeg", 0.94);
+}
+
+function waitForPreviewImages() {
+  const images = Array.from(els.preview.querySelectorAll("img"));
+  const promises = images.map(image => new Promise(resolve => {
+    if (image.complete) {
+      resolve();
+      return;
+    }
+
+    const done = () => resolve();
+    image.addEventListener("load", done, { once: true });
+    image.addEventListener("error", done, { once: true });
+    window.setTimeout(done, 2400);
+  }));
+
+  return Promise.all(promises);
+}
+
+function delay(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function openPrintableFallback() {
+  try {
+    const printable = window.open("", "_blank");
+    if (!printable) return false;
+
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join("\n");
+
+    printable.document.open();
+    printable.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(buildPdfFileName())}</title>
+${styles}
+<style>
+  body { margin: 0; background: #ffffff !important; }
+  .pdf-document { display: block !important; width: auto !important; max-width: none !important; overflow: visible !important; }
+  .sheet-frame { width: 210mm !important; height: 297mm !important; min-height: 297mm !important; overflow: hidden !important; page-break-after: always; break-after: page; }
+  .sheet-frame:last-child { page-break-after: auto; break-after: auto; }
+  .sheet { transform: none !important; box-shadow: none !important; }
+</style>
+</head>
+<body class="is-downloading-pdf">
+${els.preview.outerHTML}
+</body>
+</html>`);
+    printable.document.close();
+    printable.focus();
+    window.setTimeout(() => printable.print(), 500);
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
+
 function loadPdfLibrary() {
-  if (window.jspdf && window.jspdf.jsPDF) {
+  if (window.html2canvas && window.jspdf && window.jspdf.jsPDF) {
     return Promise.resolve();
   }
 
   return Promise.reject(new Error("Gerador de PDF local não encontrado"));
 }
-
-async function downloadPdfDirectlyFromState() {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pages = await buildDirectPdfPages();
-
-  if (!pages.length) {
-    throw new Error("Nenhuma página foi gerada");
-  }
-
-  pages.forEach((canvas, index) => {
-    const imageData = canvas.toDataURL("image/jpeg", 0.9);
-    if (index > 0) pdf.addPage("a4", "portrait");
-    pdf.addImage(imageData, "JPEG", 0, 0, 210, 297);
-  });
-
-  pdf.save(`${buildPdfFileName()}.pdf`);
-}
-
-const DIRECT_PDF = {
-  width: 1240,
-  height: 1754,
-  mm: 1240 / 210,
-  marginX: 112,
-  safeTop: 96,
-  safeBottom: 104,
-  pageLogoW: 188,
-  pageLogoH: 96,
-  colors: {
-    ink: "#000000",
-    bronze: "#805630",
-    marsala: "#4d1225",
-    soft: "#f5ebe3",
-    border: "#e2d2c5",
-    pale: "#fbf8f5",
-    white: "#ffffff"
-  }
-};
-
-function dpMm(mm) {
-  return mm * DIRECT_PDF.mm;
-}
-
-async function buildDirectPdfPages() {
-  const logo = await loadPdfImage(LOGO_SRC);
-  const pages = [];
-
-  pages.push(await drawCoverCanvas(logo));
-  pages.push(await drawPaletteCanvas(logo));
-  pages.push(...await drawInspirationCanvases(logo));
-  pages.push(...await drawBudgetCanvases(logo));
-  pages.push(...await drawTopicCanvases(logo, "O que está incluso", state.includedTopics));
-  pages.push(...await drawTopicCanvases(logo, "O que não está incluso", state.excludedTopics));
-  pages.push(await drawSignatureCanvas());
-
-  return pages;
-}
-
-function createPdfCanvas() {
-  const canvas = document.createElement("canvas");
-  canvas.width = DIRECT_PDF.width;
-  canvas.height = DIRECT_PDF.height;
-  const ctx = canvas.getContext("2d", { alpha: false });
-  ctx.fillStyle = DIRECT_PDF.colors.white;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  return { canvas, ctx };
-}
-
-function setPdfFont(ctx, size, family = "Clear Sans", weight = 400) {
-  ctx.font = `${weight} ${Math.round(size)}px "${family}", Arial, sans-serif`;
-  ctx.textBaseline = "top";
-  ctx.fillStyle = DIRECT_PDF.colors.ink;
-}
-
-function drawInternalLogo(ctx, logo) {
-  if (!logo) return;
-  drawImageContain(ctx, logo, DIRECT_PDF.width - DIRECT_PDF.marginX - DIRECT_PDF.pageLogoW, 58, DIRECT_PDF.pageLogoW, DIRECT_PDF.pageLogoH);
-}
-
-function drawPageTitle(ctx, title) {
-  setPdfFont(ctx, 74, "Magnolia Script", 400);
-  ctx.fillStyle = DIRECT_PDF.colors.ink;
-  ctx.textAlign = "center";
-  ctx.fillText(title, DIRECT_PDF.width / 2, 150);
-  ctx.textAlign = "left";
-}
-
-async function drawCoverCanvas(logo) {
-  const { canvas, ctx } = createPdfCanvas();
-  const contentX = 130;
-  const contentW = DIRECT_PDF.width - contentX * 2;
-
-  if (logo) drawImageContain(ctx, logo, (DIRECT_PDF.width - 430) / 2, 70, 430, 210);
-
-  let y = 315;
-  if (state.cover.title) {
-    setPdfFont(ctx, 84, "Magnolia Script", 400);
-    ctx.textAlign = "center";
-    ctx.fillStyle = DIRECT_PDF.colors.ink;
-    const titleLines = wrapTextLines(ctx, state.cover.title, contentW, 2);
-    titleLines.forEach(line => {
-      ctx.fillText(line, DIRECT_PDF.width / 2, y);
-      y += 92;
-    });
-    ctx.textAlign = "left";
-  }
-
-  if (state.cover.title && state.cover.subtitle) {
-    y += 12;
-    ctx.strokeStyle = DIRECT_PDF.colors.bronze;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(contentX + 180, y);
-    ctx.lineTo(contentX + contentW - 180, y);
-    ctx.stroke();
-    y += 34;
-  }
-
-  if (state.cover.subtitle) {
-    setPdfFont(ctx, 84, "Magnolia Script", 400);
-    ctx.textAlign = "center";
-    const subtitleLines = wrapTextLines(ctx, state.cover.subtitle, contentW, 2);
-    subtitleLines.forEach(line => {
-      ctx.fillText(line, DIRECT_PDF.width / 2, y);
-      y += 92;
-    });
-    ctx.textAlign = "left";
-  }
-
-  if (state.cover.intro) {
-    y += 34;
-    setPdfFont(ctx, 32, "Clear Sans", 400);
-    ctx.textAlign = "center";
-    const lines = wrapTextLines(ctx, state.cover.intro, contentW, 5);
-    lines.forEach(line => {
-      ctx.fillText(line, DIRECT_PDF.width / 2, y);
-      y += 44;
-    });
-    ctx.textAlign = "left";
-  }
-
-  const fields = state.coverFields.filter(item => (item.label || item.value || "").trim());
-  if (fields.length) {
-    y += 44;
-    const boxW = Math.min(contentW, 910);
-    const boxX = (DIRECT_PDF.width - boxW) / 2;
-    fields.forEach(item => {
-      const label = String(item.label || "").trim();
-      const value = String(item.value || "").trim();
-      const maxTextW = boxW - 54;
-      setPdfFont(ctx, 29, "Clear Sans", 400);
-      const valueLines = wrapTextLines(ctx, value, maxTextW, 3);
-      const h = Math.max(64, 34 + (label ? 26 : 0) + valueLines.length * 35);
-      if (y + h > DIRECT_PDF.height - 150) return;
-      roundRect(ctx, boxX, y, boxW, h, 22, DIRECT_PDF.colors.pale, DIRECT_PDF.colors.border);
-      let ty = y + 18;
-      if (label) {
-        setPdfFont(ctx, 22, "Clear Sans", 400);
-        ctx.fillStyle = DIRECT_PDF.colors.ink;
-        ctx.fillText(label, boxX + 27, ty);
-        ty += 28;
-      }
-      setPdfFont(ctx, 29, "Clear Sans", 400);
-      valueLines.forEach(line => {
-        ctx.fillText(line, boxX + 27, ty);
-        ty += 35;
-      });
-      y += h + 14;
-    });
-  }
-
-  return canvas;
-}
-
-async function drawPaletteCanvas(logo) {
-  const { canvas, ctx } = createPdfCanvas();
-  drawInternalLogo(ctx, logo);
-  drawPageTitle(ctx, "Paleta de cores");
-
-  const colors = state.palette.filter(item => isValidHex(item.hex));
-  const startX = DIRECT_PDF.marginX;
-  const startY = 310;
-  const colW = 480;
-  const rowH = 150;
-  const gapX = 56;
-  const gapY = 30;
-
-  if (!colors.length) return canvas;
-
-  colors.slice(0, 10).forEach((item, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const x = startX + col * (colW + gapX);
-    const y = startY + row * (rowH + gapY);
-    const hex = normalizeHex(item.hex);
-    roundRect(ctx, x, y, colW, rowH, 24, DIRECT_PDF.colors.white, DIRECT_PDF.colors.border);
-    roundRect(ctx, x + 22, y + 22, 118, 106, 18, hex, hex);
-    setPdfFont(ctx, 29, "Clear Sans", 400);
-    ctx.fillStyle = DIRECT_PDF.colors.ink;
-    ctx.fillText(item.name || "Cor", x + 166, y + 32);
-    setPdfFont(ctx, 25, "Clear Sans", 400);
-    ctx.fillText(hex.toUpperCase(), x + 166, y + 72);
-    if (item.main) {
-      roundRect(ctx, x + 166, y + 104, 132, 32, 16, DIRECT_PDF.colors.soft, DIRECT_PDF.colors.border);
-      setPdfFont(ctx, 18, "Clear Sans", 400);
-      ctx.fillText("principal", x + 190, y + 111);
-    }
-  });
-
-  return canvas;
-}
-
-async function drawInspirationCanvases(logo) {
-  const items = state.inspirations.length ? state.inspirations : [];
-  const groups = items.length ? chunk(items, 4) : [[]];
-  const pages = [];
-
-  for (const group of groups) {
-    const { canvas, ctx } = createPdfCanvas();
-    drawInternalLogo(ctx, logo);
-    drawPageTitle(ctx, "Inspirações");
-
-    const slotW = 472;
-    const slotH = 620;
-    const gapX = 72;
-    const gapY = 64;
-    const startX = (DIRECT_PDF.width - slotW * 2 - gapX) / 2;
-    const startY = 300;
-
-    for (let index = 0; index < group.length; index += 1) {
-      const item = group[index];
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const x = startX + col * (slotW + gapX);
-      const y = startY + row * (slotH + gapY);
-      roundRect(ctx, x, y, slotW, slotH, 28, DIRECT_PDF.colors.white, DIRECT_PDF.colors.border);
-      const img = await loadPdfImage(resolveImageSource(item));
-      if (img) {
-        drawImageCover(ctx, img, x + 10, y + 10, slotW - 20, slotH - 20, 22);
-      }
-    }
-
-    pages.push(canvas);
-  }
-
-  return pages;
-}
-
-async function drawBudgetCanvases(logo) {
-  const items = state.budgetItems.filter(item => item.name || item.description || item.price);
-  const total = items.reduce((sum, item) => sum + parseMoney(item.price), 0);
-  const pages = [];
-  const maxY = DIRECT_PDF.height - 128;
-  let page = createPdfCanvas();
-  setupContentPage(page.ctx, logo, "Orçamento");
-  let y = 300;
-
-  if (!items.length) {
-    drawBudgetSummaryCanvas(page.ctx, total, y);
-    pages.push(page.canvas);
-    return pages;
-  }
-
-  for (const item of items) {
-    const itemHeight = measureBudgetItemCanvas(page.ctx, item);
-    if (y + itemHeight > maxY && y > 310) {
-      pages.push(page.canvas);
-      page = createPdfCanvas();
-      setupContentPage(page.ctx, logo, "Orçamento");
-      y = 300;
-    }
-    y = drawBudgetItemCanvas(page.ctx, item, y);
-  }
-
-  const summaryHeight = measureBudgetSummaryCanvas(page.ctx);
-  if (y + summaryHeight > maxY) {
-    pages.push(page.canvas);
-    page = createPdfCanvas();
-    setupContentPage(page.ctx, logo, "Orçamento");
-    y = 300;
-  }
-  drawBudgetSummaryCanvas(page.ctx, total, y);
-  pages.push(page.canvas);
-
-  return pages;
-}
-
-function setupContentPage(ctx, logo, title) {
-  drawInternalLogo(ctx, logo);
-  drawPageTitle(ctx, title);
-}
-
-function measureBudgetItemCanvas(ctx, item) {
-  const contentW = DIRECT_PDF.width - DIRECT_PDF.marginX * 2;
-  const priceW = 230;
-  const textW = contentW - priceW - 38;
-  setPdfFont(ctx, 30, "Clear Sans", 400);
-  const nameLines = item.name ? wrapTextLines(ctx, item.name, textW, 3) : [];
-  setPdfFont(ctx, 27, "Clear Sans", 400);
-  const descLines = item.description ? wrapTextLines(ctx, item.description, textW, 6) : [];
-  return 38 + Math.max(1, nameLines.length) * 36 + Math.max(0, descLines.length) * 34 + 36;
-}
-
-function drawBudgetItemCanvas(ctx, item, y) {
-  const x = DIRECT_PDF.marginX;
-  const contentW = DIRECT_PDF.width - DIRECT_PDF.marginX * 2;
-  const priceW = 230;
-  const textW = contentW - priceW - 38;
-  const h = measureBudgetItemCanvas(ctx, item);
-
-  roundRect(ctx, x, y, contentW, h, 22, DIRECT_PDF.colors.white, DIRECT_PDF.colors.border);
-
-  let ty = y + 22;
-  if (item.name) {
-    setPdfFont(ctx, 30, "Clear Sans", 400);
-    wrapTextLines(ctx, item.name, textW, 3).forEach(line => {
-      ctx.fillText(line, x + 26, ty);
-      ty += 36;
-    });
-  }
-
-  if (item.description) {
-    setPdfFont(ctx, 27, "Clear Sans", 400);
-    wrapTextLines(ctx, item.description, textW, 6).forEach(line => {
-      ctx.fillText(line, x + 26, ty);
-      ty += 34;
-    });
-  }
-
-  setPdfFont(ctx, 28, "Clear Sans", 400);
-  ctx.textAlign = "right";
-  ctx.fillText(formatMoney(parseMoney(item.price)), x + contentW - 26, y + 24);
-  ctx.textAlign = "left";
-
-  return y + h + 18;
-}
-
-function measureBudgetSummaryCanvas(ctx) {
-  setPdfFont(ctx, 28, "Clear Sans", 400);
-  const paymentLines = state.payment.terms ? wrapTextLines(ctx, state.payment.terms, DIRECT_PDF.width - DIRECT_PDF.marginX * 2 - 54, 6) : [];
-  return 42 + 70 + 22 + 72 + paymentLines.length * 34 + 18 + 58;
-}
-
-function drawBudgetSummaryCanvas(ctx, total, y) {
-  const x = DIRECT_PDF.marginX;
-  const w = DIRECT_PDF.width - DIRECT_PDF.marginX * 2;
-  y += 34;
-  ctx.strokeStyle = DIRECT_PDF.colors.border;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y);
-  ctx.stroke();
-  y += 28;
-
-  roundRect(ctx, x, y, w, 70, 22, DIRECT_PDF.colors.pale, DIRECT_PDF.colors.border);
-  setPdfFont(ctx, 30, "Clear Sans", 400);
-  ctx.fillText("Investimento Floral", x + 26, y + 20);
-  ctx.textAlign = "right";
-  ctx.fillText(formatMoney(total), x + w - 26, y + 20);
-  ctx.textAlign = "left";
-  y += 92;
-
-  setPdfFont(ctx, 28, "Clear Sans", 400);
-  const paymentLines = state.payment.terms ? wrapTextLines(ctx, state.payment.terms, w - 54, 8) : [];
-  const paymentH = 74 + paymentLines.length * 34;
-  roundRect(ctx, x, y, w, paymentH, 22, DIRECT_PDF.colors.pale, DIRECT_PDF.colors.border);
-  ctx.fillText("Condições de pagamento", x + 26, y + 20);
-  let ty = y + 58;
-  paymentLines.forEach(line => {
-    ctx.fillText(line, x + 26, ty);
-    ty += 34;
-  });
-  y += paymentH + 18;
-
-  roundRect(ctx, x, y, w, 58, 18, DIRECT_PDF.colors.pale, DIRECT_PDF.colors.border);
-  setPdfFont(ctx, 24, "Clear Sans", 400);
-  ctx.fillText("Este orçamento é uma estimativa e os valores podem sofrer alterações.", x + 26, y + 18);
-}
-
-async function drawTopicCanvases(logo, title, topics) {
-  const cleanTopics = (topics || []).filter(item => String(item.text || "").trim());
-  const pages = [];
-  const maxY = DIRECT_PDF.height - 130;
-  let page = createPdfCanvas();
-  setupContentPage(page.ctx, logo, title);
-  let y = 300;
-
-  if (!cleanTopics.length) {
-    pages.push(page.canvas);
-    return pages;
-  }
-
-  cleanTopics.forEach(item => {
-    const h = measureTopicItemCanvas(page.ctx, item.text);
-    if (y + h > maxY && y > 310) {
-      pages.push(page.canvas);
-      page = createPdfCanvas();
-      setupContentPage(page.ctx, logo, title);
-      y = 300;
-    }
-    y = drawTopicItemCanvas(page.ctx, item.text, y);
-  });
-
-  pages.push(page.canvas);
-  return pages;
-}
-
-function measureTopicItemCanvas(ctx, text) {
-  const w = DIRECT_PDF.width - DIRECT_PDF.marginX * 2;
-  setPdfFont(ctx, 29, "Clear Sans", 400);
-  const lines = wrapTextLines(ctx, text, w - 60, 8);
-  return 36 + lines.length * 36 + 26;
-}
-
-function drawTopicItemCanvas(ctx, text, y) {
-  const x = DIRECT_PDF.marginX;
-  const w = DIRECT_PDF.width - DIRECT_PDF.marginX * 2;
-  const h = measureTopicItemCanvas(ctx, text);
-  roundRect(ctx, x, y, w, h, 22, DIRECT_PDF.colors.white, DIRECT_PDF.colors.border);
-  setPdfFont(ctx, 29, "Clear Sans", 400);
-  let ty = y + 26;
-  wrapTextLines(ctx, text, w - 60, 8).forEach(line => {
-    ctx.fillText(line, x + 30, ty);
-    ty += 36;
-  });
-  return y + h + 18;
-}
-
-async function drawSignatureCanvas() {
-  const { canvas, ctx } = createPdfCanvas();
-  setPdfFont(ctx, 94, "Gistesy", 400);
-  ctx.fillStyle = DIRECT_PDF.colors.bronze;
-  ctx.textAlign = "center";
-  ctx.fillText("Patricia Zeviani", DIRECT_PDF.width / 2, 755);
-
-  ctx.strokeStyle = DIRECT_PDF.colors.border;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(DIRECT_PDF.width / 2 - 250, 905);
-  ctx.lineTo(DIRECT_PDF.width / 2 + 250, 905);
-  ctx.stroke();
-
-  setPdfFont(ctx, 54, "Gistesy", 400);
-  ctx.fillStyle = DIRECT_PDF.colors.bronze;
-  ctx.textAlign = "center";
-  ctx.fillText("Bouquet Flores", DIRECT_PDF.width / 2, 970);
-  ctx.textAlign = "left";
-  return canvas;
-}
-
-function wrapTextLines(ctx, text, maxWidth, maxLines = Infinity) {
-  const paragraphs = String(text || "").replace(/\r/g, "").split("\n");
-  const lines = [];
-
-  for (const paragraph of paragraphs) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) {
-      if (lines.length < maxLines) lines.push("");
-      continue;
-    }
-
-    let line = "";
-    for (const word of words) {
-      const testLine = line ? `${line} ${word}` : word;
-      if (ctx.measureText(testLine).width <= maxWidth) {
-        line = testLine;
-      } else {
-        if (line) lines.push(line);
-        line = word;
-        while (ctx.measureText(line).width > maxWidth && line.length > 3) {
-          let cut = line.length - 1;
-          while (cut > 3 && ctx.measureText(line.slice(0, cut)).width > maxWidth) cut -= 1;
-          lines.push(`${line.slice(0, cut - 1)}-`);
-          line = line.slice(cut - 1);
-        }
-      }
-
-      if (lines.length >= maxLines) break;
-    }
-
-    if (lines.length >= maxLines) break;
-    if (line) lines.push(line);
-    if (lines.length >= maxLines) break;
-  }
-
-  if (lines.length > maxLines) return lines.slice(0, maxLines);
-  return lines;
-}
-
-function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-  const radius = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + w - radius, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-  ctx.lineTo(x + w, y + h - radius);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-  ctx.lineTo(x + radius, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-  if (fill) {
-    ctx.fillStyle = fill;
-    ctx.fill();
-  }
-  if (stroke) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-}
-
-function roundedClip(ctx, x, y, w, h, r) {
-  const radius = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + w - radius, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-  ctx.lineTo(x + w, y + h - radius);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-  ctx.lineTo(x + radius, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-  ctx.clip();
-}
-
-function drawImageContain(ctx, image, x, y, w, h) {
-  if (!image) return;
-  const iw = image.naturalWidth || image.width || 1;
-  const ih = image.naturalHeight || image.height || 1;
-  const scale = Math.min(w / iw, h / ih);
-  const dw = iw * scale;
-  const dh = ih * scale;
-  ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
-}
-
-function drawImageCover(ctx, image, x, y, w, h, radius = 0) {
-  if (!image) return;
-  const iw = image.naturalWidth || image.width || 1;
-  const ih = image.naturalHeight || image.height || 1;
-  const scale = Math.max(w / iw, h / ih);
-  const sw = w / scale;
-  const sh = h / scale;
-  const sx = (iw - sw) / 2;
-  const sy = (ih - sh) / 2;
-
-  ctx.save();
-  if (radius) roundedClip(ctx, x, y, w, h, radius);
-  ctx.drawImage(image, sx, sy, sw, sh, x, y, w, h);
-  ctx.restore();
-}
-
-function loadPdfImage(src) {
-  return new Promise(resolve => {
-    const value = String(src || "").trim();
-    if (!value) {
-      resolve(null);
-      return;
-    }
-
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.decoding = "async";
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    try {
-      image.src = value;
-    } catch (error) {
-      resolve(null);
-    }
-  });
-}
-
-function openPrintableFallbackWindow() {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (!printWindow) throw new Error("Não foi possível abrir janela alternativa");
-
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escapeHtml(buildPdfFileName())}</title><link rel="stylesheet" href="style.css"><style>body{background:#fff!important}.topbar,.editor,.no-print,dialog{display:none!important}.preview-wrap{display:block!important;overflow:visible!important;padding:0!important}.pdf-document{transform:none!important}.sheet-frame{width:auto!important;height:auto!important}.sheet{margin:0 auto 0!important;box-shadow:none!important;transform:none!important}@media print{.sheet{page-break-after:always}}</style></head><body>${els.preview.outerHTML}<script>setTimeout(()=>window.print(),500)<\/script></body></html>`;
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
-}
-
 function renderEditor() {
   document.querySelector('[data-section="cover"][data-field="title"]').value = state.cover.title || "";
   document.querySelector('[data-section="cover"][data-field="subtitle"]').value = state.cover.subtitle || "";
