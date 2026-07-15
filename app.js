@@ -26,6 +26,11 @@ let appInitialized = false;
 let suppressRemoteDirty = false;
 let savedBudgetsCache = [];
 let supabaseClient = null;
+let inputPreviewTimer = null;
+let inputSaveTimer = null;
+
+const INPUT_PREVIEW_DELAY = 360;
+const INPUT_SAVE_DELAY = 700;
 
 const els = {
   preview: document.getElementById("pdfPreview"),
@@ -178,7 +183,32 @@ function handleInput(event) {
     if (item) item[field] = el.value;
   }
 
-  saveState();
+  scheduleInputSaveAndPreview();
+}
+
+function scheduleInputSaveAndPreview() {
+  if (appInitialized && !suppressRemoteDirty) {
+    markRemoteDirty();
+  }
+
+  window.clearTimeout(inputSaveTimer);
+  window.clearTimeout(inputPreviewTimer);
+
+  inputSaveTimer = window.setTimeout(() => {
+    saveState({ markDirty: false });
+  }, INPUT_SAVE_DELAY);
+
+  inputPreviewTimer = window.setTimeout(() => {
+    renderPreview();
+  }, INPUT_PREVIEW_DELAY);
+}
+
+function flushPendingInputWork() {
+  window.clearTimeout(inputSaveTimer);
+  window.clearTimeout(inputPreviewTimer);
+  inputSaveTimer = null;
+  inputPreviewTimer = null;
+  saveState({ markDirty: false });
   renderPreview();
 }
 
@@ -250,46 +280,73 @@ function handleClick(event) {
   saveRenderAll(scrollTargetId);
 }
 
-function handleImageUpload(event) {
-  const files = Array.from(event.target.files || []);
+async function handleImageUpload(event) {
+  const files = Array.from(event.target.files || []).filter(file => file.type.startsWith("image/"));
   if (!files.length) return;
 
-  let pending = files.length;
-  let lastUploadedId = null;
+  setStatus("Otimizando imagens...");
 
-  files.forEach(file => {
-    if (!file.type.startsWith("image/")) {
-      pending -= 1;
-      return;
-    }
+  try {
+    const items = await Promise.all(files.map(async file => ({
+      id: cryptoId(),
+      name: file.name,
+      dataUrl: await fileToOptimizedDataUrl(file)
+    })));
 
+    state.inspirations.push(...items);
+    event.target.value = "";
+    saveRenderAll(items.length ? items[items.length - 1].id : null);
+  } catch (error) {
+    console.error(error);
+    event.target.value = "";
+    alert("Não foi possível carregar uma das imagens. Tente usar JPG, PNG ou WEBP.");
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const item = {
-        id: cryptoId(),
-        name: file.name,
-        dataUrl: reader.result
-      };
-      state.inspirations.push(item);
-      lastUploadedId = item.id;
-
-      pending -= 1;
-      if (pending === 0) {
-        event.target.value = "";
-        saveRenderAll(lastUploadedId);
-      }
-    };
-
-    reader.onerror = () => {
-      pending -= 1;
-      if (pending === 0) {
-        event.target.value = "";
-        saveRenderAll(lastUploadedId);
-      }
-    };
-
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Falha ao ler imagem"));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Imagem inválida"));
+    image.src = src;
+  });
+}
+
+async function optimizeImageDataUrl(dataUrl, { maxSide = 1800, quality = 0.86 } = {}) {
+  if (!String(dataUrl || "").startsWith("data:image/")) return dataUrl;
+
+  const image = await loadImageElement(dataUrl);
+  const width = image.naturalWidth || image.width || 1;
+  const height = image.naturalHeight || image.height || 1;
+  const longest = Math.max(width, height);
+
+  if (longest <= maxSide && String(dataUrl).length < 900000) {
+    return dataUrl;
+  }
+
+  const ratio = Math.min(1, maxSide / longest);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * ratio));
+  canvas.height = Math.max(1, Math.round(height * ratio));
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function fileToOptimizedDataUrl(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return optimizeImageDataUrl(dataUrl);
 }
 
 async function waitForFonts() {
@@ -307,7 +364,7 @@ async function waitForFonts() {
 }
 
 async function downloadPdf() {
-  renderPreview();
+  flushPendingInputWork();
   await waitForFonts();
 
   try {
@@ -352,7 +409,7 @@ async function downloadPdf() {
     pdf.save(`${buildPdfFileName()}.pdf`);
   } catch (error) {
     console.error(error);
-    alert("Não foi possível baixar o PDF automaticamente. Verifique se todas as imagens carregaram corretamente e tente novamente.");
+    alert(`Não foi possível baixar o PDF automaticamente. O gerador local foi reforçado para imagens grandes; tente novamente após atualizar todos os arquivos.\n\nDetalhe: ${error.message || error}`);
   } finally {
     document.body.classList.remove("is-downloading-pdf");
     els.btnDownloadPdf.disabled = false;
@@ -939,7 +996,7 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState({ markDirty = true } = {}) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setStatus("Alterações salvas neste navegador");
@@ -953,7 +1010,7 @@ function saveState() {
     }
   }
 
-  if (appInitialized && !suppressRemoteDirty) {
+  if (markDirty && appInitialized && !suppressRemoteDirty) {
     markRemoteDirty();
   }
 }
@@ -1060,6 +1117,11 @@ function saveRemoteMeta() {
 }
 
 function markRemoteDirty() {
+  if (remoteMeta.dirty) {
+    updateRemoteStatus();
+    return;
+  }
+
   remoteMeta.dirty = true;
   saveRemoteMeta();
   updateRemoteStatus();

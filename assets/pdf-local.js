@@ -82,6 +82,8 @@
     return chunks.join("\n");
   }
 
+  const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -91,20 +93,73 @@
     });
   }
 
+  function waitForDomImage(image) {
+    return new Promise((resolve, reject) => {
+      if (image.complete && image.naturalWidth) {
+        resolve(image);
+        return;
+      }
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Falha ao carregar imagem"));
+    });
+  }
+
+  async function compressDataUrl(dataUrl) {
+    if (!/^data:image\//i.test(String(dataUrl || ""))) return dataUrl;
+
+    const image = new Image();
+    image.decoding = "sync";
+    image.src = dataUrl;
+    await waitForDomImage(image);
+
+    const width = image.naturalWidth || image.width || 1;
+    const height = image.naturalHeight || image.height || 1;
+    const longest = Math.max(width, height);
+
+    if (longest <= 1600 && String(dataUrl).length < 900000) {
+      return dataUrl;
+    }
+
+    const ratio = Math.min(1, 1600 / longest);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * ratio));
+    canvas.height = Math.max(1, Math.round(height * ratio));
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.88);
+  }
+
+  async function sourceToSafeDataUrl(src) {
+    if (!src) return TRANSPARENT_PIXEL;
+
+    if (/^data:/i.test(src)) {
+      return compressDataUrl(src);
+    }
+
+    const absoluteUrl = new URL(src, document.baseURI).href;
+    const response = await fetch(absoluteUrl, { mode: "cors", credentials: "omit", cache: "force-cache" });
+    if (!response.ok) throw new Error("Falha ao baixar imagem");
+    const blob = await response.blob();
+    const dataUrl = await blobToDataUrl(blob);
+    return compressDataUrl(dataUrl);
+  }
+
   async function inlineImages(root) {
     const images = Array.from(root.querySelectorAll("img"));
     await Promise.all(images.map(async img => {
       const src = img.getAttribute("src");
-      if (!src || /^data:/i.test(src)) return;
+      img.removeAttribute("srcset");
+      img.removeAttribute("sizes");
+      img.setAttribute("crossorigin", "anonymous");
 
       try {
-        const absoluteUrl = new URL(src, document.baseURI).href;
-        const response = await fetch(absoluteUrl, { mode: "cors", credentials: "omit" });
-        if (!response.ok) return;
-        const blob = await response.blob();
-        img.setAttribute("src", await blobToDataUrl(blob));
+        img.setAttribute("src", await sourceToSafeDataUrl(src));
       } catch (error) {
-        // Se não conseguir converter, mantém a imagem original.
+        // Para não cancelar o PDF inteiro quando uma imagem externa falhar,
+        // substitui apenas aquela imagem por um pixel transparente.
+        img.setAttribute("src", TRANSPARENT_PIXEL);
       }
     }));
   }

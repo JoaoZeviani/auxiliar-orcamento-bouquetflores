@@ -112,7 +112,7 @@ button {
   display: block;
   margin-top: .1rem;
   color: var(--ui-muted);
-  font-size: .86rem;
+  font-size: .92rem;
 }
 
 .topbar-actions {
@@ -175,8 +175,8 @@ button:disabled,
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(340px, 430px) 1fr;
-  gap: 1.3rem;
+  grid-template-columns: minmax(430px, 560px) minmax(0, 1fr);
+  gap: 1.45rem;
   padding: 1.25rem;
   align-items: start;
 }
@@ -188,7 +188,7 @@ button:disabled,
 }
 
 .panel {
-  padding: 1rem;
+  padding: 1.08rem;
   background: rgba(255, 250, 246, .92);
   border: 1px solid var(--ui-border);
   border-radius: 22px;
@@ -228,9 +228,9 @@ button:disabled,
 
 label {
   display: block;
-  margin-bottom: .75rem;
+  margin-bottom: .85rem;
   font-weight: 400;
-  font-size: .86rem;
+  font-size: .92rem;
 }
 
 input[type="text"],
@@ -247,7 +247,9 @@ textarea {
 
 input[type="text"],
 textarea {
-  padding: .65rem .72rem;
+  padding: .82rem .9rem;
+  font-size: 1rem;
+  line-height: 1.35;
 }
 
 textarea {
@@ -256,7 +258,7 @@ textarea {
 }
 
 input[type="color"] {
-  min-height: 42px;
+  min-height: 46px;
   padding: .18rem;
 }
 
@@ -282,8 +284,8 @@ textarea:focus {
 
 .editor-card .card-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .55rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: .75rem;
 }
 
 .editor-card .card-grid.one {
