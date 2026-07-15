@@ -72,10 +72,28 @@
   }
 
   function stripUnsafeCss(cssText) {
-    return String(cssText || "")
+    return sanitizeCssUrls(String(cssText || ""))
       .replace(/@charset[^;]+;/gi, "")
-      .replace(/@import[^;]+;/gi, "")
-      .replace(/url\(\s*['\"]?https?:\/\/[^)]+\)/gi, "none");
+      .replace(/@import[^;]+;/gi, "");
+  }
+
+  function sanitizeCssUrls(cssText) {
+    // O SVG usado internamente para rasterizar a prévia precisa ser 100%
+    // origin-clean. No Android, qualquer url(...) externa restante em CSS
+    // pode contaminar o canvas e impedir canvas.toDataURL().
+    return String(cssText || "").replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (full, quote, rawUrl) => {
+      const value = String(rawUrl || "").trim();
+      if (!value) return "none";
+      if (/^data:/i.test(value)) return full;
+      // blob:, http(s):, caminhos relativos, arquivos locais e fragmentos SVG
+      // são retirados do CSS exportado. Imagens reais do documento são
+      // convertidas separadamente para data:image/jpeg antes da renderização.
+      return "none";
+    });
+  }
+
+  function hasUnsafeCssUrl(cssText) {
+    return /url\(\s*(['"]?)(?!data:)[^'")]+\1\s*\)/i.test(String(cssText || ""));
   }
 
   function cssRuleText(rule) {
@@ -152,11 +170,13 @@
         const dataUrl = await urlToDataUrl(absoluteUrl);
         css = css.split(original).join(`url("${dataUrl}")`);
       } catch (error) {
-        css = css.split(original).join(`url("${absoluteUrl}")`);
+        // Não deixamos URL externa dentro do SVG exportado. No Android isso
+        // contamina o canvas e causa: Tainted canvases may not be exported.
+        css = css.split(original).join("none");
       }
     }
 
-    return css;
+    return sanitizeCssUrls(css);
   }
 
 
@@ -210,7 +230,10 @@
       }
     }
 
-    cachedFontCss = chunks.join("\n");
+    cachedFontCss = chunks
+      .map(chunk => sanitizeCssUrls(chunk))
+      .filter(chunk => chunk.trim() && !hasUnsafeCssUrl(chunk))
+      .join("\n");
     return cachedFontCss;
   }
 
@@ -258,7 +281,7 @@
     const baseCss = await collectBaseCss();
     const vars = collectCssVariablesFrom(preview);
 
-    return `
+    return sanitizeCssUrls(`
       ${fontCss}
       ${baseCss}
       :root, html, body, .pdf-export-root {
@@ -302,7 +325,7 @@
       .topbar, .editor, .no-print, dialog {
         display: none !important;
       }
-    `;
+    `);
   }
 
   function blobToDataUrl(blob) {
@@ -429,8 +452,46 @@
       clonedImage.removeAttribute("srcset");
       clonedImage.removeAttribute("sizes");
       clonedImage.removeAttribute("loading");
-      clonedImage.setAttribute("crossorigin", "anonymous");
+      clonedImage.removeAttribute("crossorigin");
       clonedImage.setAttribute("src", await imageElementToDataUrl(sourceImage));
+    }
+  }
+
+  function sanitizeElementInlineStyles(root) {
+    const elements = [root, ...Array.from(root.querySelectorAll("*"))].filter(Boolean);
+    const urlStyleProperties = [
+      "backgroundImage",
+      "borderImageSource",
+      "listStyleImage",
+      "maskImage",
+      "webkitMaskImage",
+      "filter"
+    ];
+
+    for (const element of elements) {
+      if (element.hasAttribute && element.hasAttribute("style")) {
+        const styleText = element.getAttribute("style") || "";
+        if (/url\(/i.test(styleText)) {
+          element.setAttribute("style", sanitizeCssUrls(styleText));
+        }
+      }
+
+      if (element.style) {
+        for (const prop of urlStyleProperties) {
+          try {
+            if (element.style[prop] && /url\(/i.test(element.style[prop])) element.style[prop] = "none";
+          } catch (error) {
+            // Ignora propriedades não suportadas pelo navegador.
+          }
+        }
+      }
+    }
+  }
+
+  function removeUnsafeSvgImageReferences(root) {
+    for (const node of Array.from(root.querySelectorAll("image, use"))) {
+      const href = node.getAttribute("href") || node.getAttribute("xlink:href") || "";
+      if (href && !/^data:/i.test(href)) node.remove();
     }
   }
 
@@ -475,6 +536,8 @@
 
     const clonedPage = makeExportPage(sourcePage);
     await inlineImages(sourcePage, clonedPage);
+    sanitizeElementInlineStyles(clonedPage);
+    removeUnsafeSvgImageReferences(clonedPage);
 
     const pageMarkup = serializePageForSvg(clonedPage);
     const xhtml = `
@@ -518,11 +581,18 @@
   }
 
   function canvasToJpegDataUrl(canvas, quality) {
-    const dataUrl = canvas.toDataURL("image/jpeg", quality || 0.92);
-    if (!/^data:image\/jpeg;base64,/i.test(dataUrl)) {
-      throw new Error("Falha ao converter página para imagem do PDF");
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", quality || 0.92);
+      if (!/^data:image\/jpeg;base64,/i.test(dataUrl)) {
+        throw new Error("Falha ao converter página para imagem do PDF");
+      }
+      return dataUrl;
+    } catch (error) {
+      if (/tainted|contamin/i.test(String(error && (error.message || error)))) {
+        throw new Error("O navegador bloqueou a exportação porque ainda havia recurso externo dentro da página do PDF. Atualize o arquivo pdf-local.js e recarregue a página com Ctrl+F5.");
+      }
+      throw error;
     }
-    return dataUrl;
   }
 
   class LocalPdfDocument {
