@@ -26,6 +26,7 @@
   --ui-primary: #4d1225;
   --ui-primary-dark: #4d0b17;
   --ui-accent: #805630;
+  --editor-width: 410px;
 
   --pdf-primary: #4d1225;
   --pdf-primary-dark: #4d0b17;
@@ -175,7 +176,7 @@ button:disabled,
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(430px, 560px) minmax(0, 1fr);
+  grid-template-columns: minmax(340px, var(--editor-width)) 10px minmax(0, 1fr);
   gap: 1.45rem;
   padding: 1.25rem;
   align-items: start;
@@ -185,6 +186,39 @@ button:disabled,
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.column-resizer {
+  align-self: stretch;
+  width: 10px;
+  min-height: 100%;
+  cursor: col-resize;
+  border-radius: 999px;
+  background: transparent;
+  position: relative;
+}
+
+.column-resizer::before {
+  content: "";
+  position: absolute;
+  top: .75rem;
+  bottom: .75rem;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(77, 18, 37, .18);
+}
+
+.column-resizer:hover::before,
+body.is-resizing-editor .column-resizer::before {
+  width: 4px;
+  background: rgba(77, 18, 37, .42);
+}
+
+body.is-resizing-editor {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .panel {
@@ -234,6 +268,7 @@ label {
 }
 
 input[type="text"],
+input[type="search"],
 input[type="color"],
 textarea {
   width: 100%;
@@ -246,6 +281,7 @@ textarea {
 }
 
 input[type="text"],
+input[type="search"],
 textarea {
   padding: .82rem .9rem;
   font-size: 1rem;
@@ -571,6 +607,7 @@ textarea:focus {
   font-size: 39pt;
   line-height: 1.08;
   letter-spacing: -.02em;
+  white-space: pre-line;
 }
 
 .cover-subtitle {
@@ -581,6 +618,7 @@ textarea:focus {
   font-size: 39pt;
   line-height: 1.08;
   letter-spacing: -.02em;
+  white-space: pre-line;
 }
 
 .cover-main h1 + .cover-subtitle {
@@ -675,6 +713,7 @@ textarea:focus {
 
 .swatch-color {
   min-height: 21mm;
+  border-radius: 5mm 5mm 0 0;
 }
 
 .swatch-info {
@@ -685,6 +724,7 @@ textarea:focus {
   display: block;
   color: #000000;
   font-size: 16pt;
+  white-space: pre-line;
 }
 
 .swatch-info span {
@@ -740,6 +780,7 @@ textarea:focus {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: inherit;
 }
 
 .inspiration-slot.empty {
@@ -772,6 +813,7 @@ textarea:focus {
   margin: 0 0 1.5mm;
   color: #000000;
   font-size: 17pt;
+  white-space: pre-line;
 }
 
 .budget-row p {
@@ -889,6 +931,10 @@ textarea:focus {
   line-height: 1.48;
 }
 
+.included-item span {
+  white-space: pre-line;
+}
+
 .included-bullet {
   display: none;
 }
@@ -940,6 +986,10 @@ textarea:focus {
 @media (max-width: 1120px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+
+  .column-resizer {
+    display: none;
   }
 
   .preview-toolbar {

@@ -154,30 +154,70 @@
     return rect.right > 0 && rect.bottom > 0 && rect.x < targetWidth && rect.y < targetHeight;
   }
 
+  function parseRadiusPx(value, map) {
+    const first = String(value || "0").split("/")[0].trim().split(/\s+/)[0];
+    return parsePx(first) * ((map.scaleX + map.scaleY) / 2);
+  }
+
+  function cornerRadiiPx(style, map) {
+    return {
+      tl: parseRadiusPx(style.borderTopLeftRadius, map),
+      tr: parseRadiusPx(style.borderTopRightRadius, map),
+      br: parseRadiusPx(style.borderBottomRightRadius, map),
+      bl: parseRadiusPx(style.borderBottomLeftRadius, map)
+    };
+  }
+
+  function hasRadius(radii) {
+    return radii && (radii.tl || radii.tr || radii.br || radii.bl);
+  }
+
+  function normalizeRadii(width, height, radii) {
+    const max = Math.max(0, Math.min(width, height) / 2);
+    return {
+      tl: clamp(radii.tl || 0, 0, max),
+      tr: clamp(radii.tr || 0, 0, max),
+      br: clamp(radii.br || 0, 0, max),
+      bl: clamp(radii.bl || 0, 0, max)
+    };
+  }
+
   function roundedRectPath(ctx, x, y, width, height, radius) {
-    const r = clamp(radius || 0, 0, Math.min(width, height) / 2);
+    const r = typeof radius === "object" ? normalizeRadii(width, height, radius) : normalizeRadii(width, height, { tl: radius, tr: radius, br: radius, bl: radius });
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + width - r, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-    ctx.lineTo(x + width, y + height - r);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-    ctx.lineTo(x + r, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.moveTo(x + r.tl, y);
+    ctx.lineTo(x + width - r.tr, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r.tr);
+    ctx.lineTo(x + width, y + height - r.br);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r.br, y + height);
+    ctx.lineTo(x + r.bl, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r.bl);
+    ctx.lineTo(x, y + r.tl);
+    ctx.quadraticCurveTo(x, y, x + r.tl, y);
     ctx.closePath();
   }
 
-  function averageRadiusPx(style, map) {
-    const values = [
-      style.borderTopLeftRadius,
-      style.borderTopRightRadius,
-      style.borderBottomRightRadius,
-      style.borderBottomLeftRadius
-    ].map(parsePx).filter(n => n > 0);
-    if (!values.length) return 0;
-    return (values.reduce((a, b) => a + b, 0) / values.length) * ((map.scaleX + map.scaleY) / 2);
+  function inheritedClipRadii(element, ownRadii, map) {
+    if (hasRadius(ownRadii)) return ownRadii;
+
+    const parent = element && element.parentElement;
+    if (!parent) return ownRadii;
+
+    const parentStyle = getComputedStyle(parent);
+    const overflowClips = /(hidden|clip|auto|scroll)/.test(`${parentStyle.overflow} ${parentStyle.overflowX} ${parentStyle.overflowY}`);
+    if (!overflowClips) return ownRadii;
+
+    const parentRadii = cornerRadiiPx(parentStyle, map);
+    if (!hasRadius(parentRadii)) return ownRadii;
+
+    const rect = element.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    const fillsParent = Math.abs(rect.left - parentRect.left) < 2
+      && Math.abs(rect.top - parentRect.top) < 2
+      && Math.abs(rect.width - parentRect.width) < 3
+      && Math.abs(rect.height - parentRect.height) < 3;
+
+    return fillsParent ? parentRadii : ownRadii;
   }
 
   function drawElementBox(ctx, element, map, targetWidth, targetHeight) {
@@ -187,7 +227,7 @@
 
     const style = getComputedStyle(element);
     const bg = parseCssColor(style.backgroundColor);
-    const radius = averageRadiusPx(style, map);
+    const radius = cornerRadiiPx(style, map);
 
     if (bg) {
       ctx.save();
@@ -383,7 +423,7 @@
     }
 
     ctx.save();
-    clipRounded(ctx, rect, averageRadiusPx(style, map));
+    clipRounded(ctx, rect, inheritedClipRadii(img, cornerRadiiPx(style, map), map));
     ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
     ctx.restore();
   }

@@ -31,6 +31,9 @@ let inputSaveTimer = null;
 
 const INPUT_PREVIEW_DELAY = 360;
 const INPUT_SAVE_DELAY = 700;
+const EDITOR_WIDTH_KEY = "orcamento-floral-editor-width-v1";
+const EDITOR_WIDTH_MIN = 340;
+const EDITOR_WIDTH_MAX = 640;
 
 const els = {
   preview: document.getElementById("pdfPreview"),
@@ -60,12 +63,14 @@ const els = {
   btnAddColor: document.getElementById("btnAddColor"),
   btnAddBudgetItem: document.getElementById("btnAddBudgetItem"),
   btnAddIncluded: document.getElementById("btnAddIncluded"),
-  btnAddExcluded: document.getElementById("btnAddExcluded")
+  btnAddExcluded: document.getElementById("btnAddExcluded"),
+  columnResizer: document.getElementById("columnResizer")
 };
 
 init();
 
 function init() {
+  applySavedEditorWidth();
   ensureMainColor();
   renderEditor();
   renderPreview();
@@ -81,6 +86,7 @@ function bindEvents() {
   document.body.addEventListener("input", handleInput);
   document.body.addEventListener("change", handleChange);
   document.body.addEventListener("click", handleClick);
+  bindEditorResizer();
 
   els.inspirationInput.addEventListener("change", handleImageUpload);
 
@@ -140,6 +146,52 @@ function bindEvents() {
     state.excludedTopics.push(item);
     saveRenderAll(item.id);
   });
+}
+
+function applySavedEditorWidth() {
+  const saved = Number(localStorage.getItem(EDITOR_WIDTH_KEY));
+  if (!Number.isFinite(saved)) return;
+  setEditorWidth(saved, { persist: false });
+}
+
+function setEditorWidth(width, { persist = true } = {}) {
+  const value = Math.round(Math.min(EDITOR_WIDTH_MAX, Math.max(EDITOR_WIDTH_MIN, Number(width) || 0)));
+  document.documentElement.style.setProperty("--editor-width", `${value}px`);
+  if (persist) localStorage.setItem(EDITOR_WIDTH_KEY, String(value));
+  updatePreviewScale();
+}
+
+function bindEditorResizer() {
+  if (!els.columnResizer || !els.columnResizer.setPointerCapture) return;
+
+  let startX = 0;
+  let startWidth = 0;
+  let active = false;
+
+  els.columnResizer.addEventListener("pointerdown", event => {
+    if (window.matchMedia && window.matchMedia("(max-width: 1120px)").matches) return;
+    active = true;
+    startX = event.clientX;
+    startWidth = els.coverFieldsEditor.closest(".editor").getBoundingClientRect().width;
+    document.body.classList.add("is-resizing-editor");
+    els.columnResizer.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  els.columnResizer.addEventListener("pointermove", event => {
+    if (!active) return;
+    setEditorWidth(startWidth + event.clientX - startX);
+  });
+
+  const finish = event => {
+    if (!active) return;
+    active = false;
+    document.body.classList.remove("is-resizing-editor");
+    try { els.columnResizer.releasePointerCapture(event.pointerId); } catch (error) {}
+  };
+
+  els.columnResizer.addEventListener("pointerup", finish);
+  els.columnResizer.addEventListener("pointercancel", finish);
 }
 
 function handleInput(event) {
@@ -810,11 +862,21 @@ function getBudgetPageHeightMm(items) {
   return items.reduce((sum, item) => sum + estimateBudgetItemHeightMm(item), 0);
 }
 
+function countEstimatedLines(text, charsPerLine) {
+  const lines = String(text || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+
+  return Math.max(1, lines.reduce((sum, line) => {
+    const length = line.trim().length;
+    return sum + Math.max(1, Math.ceil(length / charsPerLine));
+  }, 0));
+}
+
 function estimateBudgetItemHeightMm(item) {
-  const nameLength = String(item.name || "").trim().length;
-  const descriptionLength = String(item.description || "").trim().length;
-  const nameLines = Math.max(1, Math.ceil(nameLength / 27));
-  const descriptionLines = descriptionLength ? Math.max(1, Math.ceil(descriptionLength / 68)) : 1;
+  const nameLines = countEstimatedLines(item.name, 27);
+  const descriptionText = String(item.description || "");
+  const descriptionLines = descriptionText.trim() ? countEstimatedLines(descriptionText, 68) : 1;
 
   return 14 + nameLines * 6.8 + descriptionLines * 7.2 + 4.5;
 }
@@ -904,8 +966,7 @@ function paginateTextTopics(topics) {
 }
 
 function estimateTopicHeightMm(text) {
-  const length = String(text || "").trim().length;
-  const lines = Math.max(1, Math.ceil(length / 82));
+  const lines = countEstimatedLines(text, 82);
   return 12 + lines * 7.7 + 4;
 }
 
